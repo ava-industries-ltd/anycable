@@ -1,15 +1,15 @@
-# .docker/Dockerfile.local
+# .docker/Dockerfile
 
 #####################################
 # Stage 1: Builder                  #
 #####################################
-FROM --platform=linux/arm64 golang:1.23-bullseye AS builder
+FROM golang:1.23-bullseye AS builder
 
-# Enable CGO and modules
+# Allow Go to auto-upgrade toolchain to 1.25+
 ENV CGO_ENABLED=1 \
-    GO111MODULE=on
+    GO111MODULE=on \
+    GOTOOLCHAIN=auto
 
-# Install system deps: bison for MRuby, zip (if you need it locally), git & Ruby for go-mruby
 RUN apt-get update && \
     apt-get install -y \
       bison \
@@ -17,18 +17,17 @@ RUN apt-get update && \
       git \
       ruby2.7 \
       ruby2.7-dev \
-      build-essential && \
-    rm -rf /var/lib/apt/lists/*
+      build-essential \
+      ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
-
-# 1) Copy everything (including go.mod/go.sum)
 COPY . .
 
-# 2) Vendor all Go modules (this creates ./vendor/)
+# Vendor Go modules (requires Go 1.25+, auto-downloaded)
 RUN go mod vendor
 
-# 3) Build the MRuby static lib
+# Build MRuby static library
 RUN cd vendor/github.com/mitchellh/go-mruby && \
     MRUBY_CONFIG=../../../../../../etc/build_config.rb \
     make libmruby.a
@@ -37,17 +36,16 @@ RUN cd vendor/github.com/mitchellh/go-mruby && \
 RUN go build -tags mrb \
     -ldflags "\
       -s -w \
-      -X github.com/anycable/anycable-go/version.version=$(git describe --tags --always --dirty) \
-      -X github.com/anycable/anycable-go/version.sha=$(git rev-parse --short HEAD)" \
+      -X github.com/anycable/anycable/version.version=$(git describe --tags --always --dirty) \
+      -X github.com/anycable/anycable/version.sha=$(git rev-parse --short HEAD)" \
     -o anycable-go-mrb \
     cmd/anycable-go/main.go
 
 #####################################
 # Stage 2: Slim Runtime             #
 #####################################
-FROM --platform=linux/arm64 debian:bullseye-slim
+FROM debian:bullseye-slim
 
-# Copy only the final binary in
 COPY --from=builder /src/anycable-go-mrb /usr/local/bin/anycable-go
 
 USER nobody
