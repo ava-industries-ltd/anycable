@@ -5,7 +5,7 @@ on:
     tags:
       - v1.6.*
     branches:
-      - main
+      - main2
   workflow_dispatch:
 
 jobs:

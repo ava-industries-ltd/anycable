@@ -15,7 +15,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up repo variables
         run: |
@@ -31,7 +31,7 @@ jobs:
           fi
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: arn:aws:iam::${{ secrets.BUILD_ARTIFACTS_AWS_ACCOUNT_ID }}:role/github-build-ecr-s3-${{ env.REPO_NAME }}
           aws-region: ca-central-1
