@@ -1,0 +1,32 @@
+{
+    "variables": {
+        "name": "config/name",
+        "environment": "config/environment",
+        "region": "config/region",
+        "master_account_id": "config/master_account_id",
+        "rails_env": "config/rails_env",
+        "physician_domain": "config/physician_domain",
+        "vpc_id": "config/network/vpc_id",
+        "vpc_private_subnets": "config/network/private_subnets",
+        "vpc_public_subnets": "config/network/public_subnets",
+        "redis_endpoint": "config/cache/redis_endpoint",
+        "redis_port": "config/cache/redis_port",
+        "ava_anycable_image": "config/ava_anycable_image",
+        "anycable_go_version": "config/anycable_go_version",
+        "postgres_endpoint": "config/database/postgres_endpoint",
+        "postgres_reader_endpoint": "config/database/postgres_reader_endpoint",
+        "postgres_database": "config/database/postgres_database",
+        "postgres_reader_database": "config/database/postgres_reader_database",
+        "postgres_port": "config/database/postgres_port",
+        "postgres_reader_port": "config/database/postgres_reader_port",
+        "database_security_group": "config/database/sg",
+        "audit_database_security_group": "config/audit_database/sg",
+        "audit_replica_database": "config/audit_database/database",
+        "audit_replica_endpoint": "config/audit_database/reader_endpoint",
+        "audit_replica_port": "config/audit_database/port",
+        "redis_security_group_id": "config/cache/redis_security_group_id",
+        "ava_emr_image": "config/ava_emr_image",
+        "ava_emr_version": "config/ava_emr_version",
+        "tags": "config/tags_json"
+    }
+}

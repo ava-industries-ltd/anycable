@@ -46,4 +46,8 @@ Gemfile.lock
 /coverage.out
 admin/ui/build
 
-.claude/*.local.*
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+/**/parameters.json

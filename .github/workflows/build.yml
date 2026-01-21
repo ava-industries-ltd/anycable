@@ -1,0 +1,72 @@
+name: Build and Push AnyCable‑Go
+
+on:
+  push:
+    branches: ["*"]
+    tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up repo variables
+        run: |
+          echo "REPO_NAME=${GITHUB_REPOSITORY#*/}" >> $GITHUB_ENV
+          echo "ECR_REPO_NAME=$(echo ${GITHUB_REPOSITORY#*/} | tr '_' '-')" >> $GITHUB_ENV
+
+      - name: Determine artifact tag
+        run: |
+          if   [ "${GITHUB_REF}" = "refs/heads/master" ]; then
+            echo "ARTIFACT_TAG=latest" >> $GITHUB_ENV
+          elif [[ ! "${GITHUB_REF}" =~ ^refs/heads/dependabot/ ]]; then
+            echo "ARTIFACT_TAG=${GITHUB_REF_NAME}" >> $GITHUB_ENV
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.BUILD_ARTIFACTS_AWS_ACCOUNT_ID }}:role/github-build-ecr-s3-${{ env.REPO_NAME }}
+          aws-region: ca-central-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          install: true
+
+      - name: Build & push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .docker/Dockerfile
+          builder: ${{ steps.buildx.outputs.name }}
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPO_NAME }}:${{ env.ARTIFACT_TAG }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPO_NAME }}:${{ github.sha }}
+
+      - name: Create build zip
+        if: ${{ !startsWith(github.ref, 'refs/heads/dependabot/') }}
+        run: zip -r "${REPO_NAME}-${GITHUB_SHA}.zip" infrastructure/ scripts/
+
+      - name: Upload build zip to S3
+        if: ${{ !startsWith(github.ref, 'refs/heads/dependabot/') }}
+        run: |
+          echo "${GITHUB_SHA}" > "${REPO_NAME}-${ARTIFACT_TAG}.txt"
+          aws s3 cp "${REPO_NAME}-${ARTIFACT_TAG}.txt"  s3://${{ secrets.BUILD_S3_ARTIFACTS_BUCKET }}/${REPO_NAME}/
+          aws s3 cp "${REPO_NAME}-${GITHUB_SHA}.zip"   s3://${{ secrets.BUILD_S3_ARTIFACTS_BUCKET }}/${REPO_NAME}/
