@@ -54,11 +54,11 @@ variable "grpc_cpu" {
   default = 4096
 }
 
-variable "grpc_port" {
-  type    = number
-  default = 50051
+variable "grpc_container_port" {
+  description = "Port exposed by the container"
+  type        = number
+  default     = 80
 }
-
 
 variable "grpc_memory" {
   type    = number
