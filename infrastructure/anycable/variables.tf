@@ -89,7 +89,7 @@ variable "redis_port" {
 
 variable "ava_anycable_image" {
   type    = string
-  default = "250012284601.dkr.ecr.ca-central-1.amazonaws.com/anycable-go"
+  default = "923673750962.dkr.ecr.ca-central-1.amazonaws.com/anycable"
 }
 
 variable "anycable_go_version" {
@@ -243,7 +243,7 @@ variable "anycable_desired_count" {
 variable "grpc_desired_count" {
   description = "Desired number of tasks/instances for gRPC"
   type        = number
-  default     = 1
+  default     = 2
 }
 
 variable "anycable_instance_type" {
@@ -255,7 +255,7 @@ variable "anycable_instance_type" {
 variable "grpc_instance_type" {
   description = "EC2 instance type for gRPC"
   type        = string
-  default     = "t3.xlarge"
+  default     = "t3.medium"
 }
 
 variable "log_retention_days" {

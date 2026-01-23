@@ -1,5 +1,5 @@
 #!/bin/bash
-set -eo pipefail
+set -exo pipefail
 
 usage ()
 {
@@ -14,7 +14,7 @@ usage ()
   exit
 }
 
-COMPONENT='anycable_go'
+COMPONENT='anycable'
 COMPONENT_SANITIZED=$(tr '-' '_'<<< $COMPONENT)
 REGION='ca-central-1'
 BACKEND_PROFILE=''

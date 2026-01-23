@@ -24,7 +24,7 @@ jobs:
 
       - name: Determine artifact tag
         run: |
-          if   [ "${GITHUB_REF}" = "refs/heads/master" ]; then
+          if   [ "${GITHUB_REF}" = "refs/heads/main" ]; then
             echo "ARTIFACT_TAG=latest" >> $GITHUB_ENV
           elif [[ ! "${GITHUB_REF}" =~ ^refs/heads/dependabot/ ]]; then
             echo "ARTIFACT_TAG=${GITHUB_REF_NAME}" >> $GITHUB_ENV
