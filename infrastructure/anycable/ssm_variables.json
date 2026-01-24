@@ -12,7 +12,7 @@
         "redis_endpoint": "config/cache/redis_endpoint",
         "redis_port": "config/cache/redis_port",
         "ava_anycable_image": "config/ava_anycable_image",
-        "anycable_go_version": "config/anycable_go_version",
+        "anycable_version": "config/anycable_version",
         "postgres_endpoint": "config/database/postgres_endpoint",
         "postgres_reader_endpoint": "config/database/postgres_reader_endpoint",
         "postgres_database": "config/database/postgres_database",

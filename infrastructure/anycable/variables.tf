@@ -51,7 +51,7 @@ variable "master_account_id" {
 
 variable "grpc_cpu" {
   type    = number
-  default = 4096
+  default = 2048
 }
 
 variable "grpc_container_port" {
@@ -62,7 +62,7 @@ variable "grpc_container_port" {
 
 variable "grpc_memory" {
   type    = number
-  default = 15750
+  default = 3800
 }
 
 variable "anycable_cpu" {
@@ -92,7 +92,7 @@ variable "ava_anycable_image" {
   default = "923673750962.dkr.ecr.ca-central-1.amazonaws.com/anycable"
 }
 
-variable "anycable_go_version" {
+variable "anycable_version" {
   type = string
 }
 
