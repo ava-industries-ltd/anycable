@@ -40,10 +40,8 @@ locals {
     { "name" : "ANYCABLE_REDIS_URL", "value" : "rediss://${var.redis_endpoint}:${var.redis_port}" },
     { "name" : "ANYCABLE_HOST", "value" : "0.0.0.0" },
     { "name" : "ANYCABLE_PORT", "value" : "80" },
-    # NOTE: We are using HTTP RPC for AnyCable instead of gRPC
-    # If we want to switch back to gRPC in the future, we can uncomment the following lines
-    # { "name" : "ANYCABLE_RPC_HOST", "value" : "${module.grpc.ecs_service_dns}:${var.grpc_port}" },
-    # { "name" : "ANYCABLE_RPC_PORT", "value" : "${var.grpc_port}" },
+    { "name" : "ANYCABLE_RPC_HOST", "value" : "${module.grpc.alb_dns_name}:${var.grpc_port}" },
+    { "name" : "ANYCABLE_RPC_PORT", "value" : "${var.grpc_port}" },
     { "name" : "ANYCABLE_REDIS_TLS", "value" : "false" },
     { "name" : "ANYCABLE_PATH", "value" : "/cable" },
     { "name" : "ANYCABLE_ALLOWED_ORIGINS", "value" : "*.avaemr.ca" },
@@ -89,14 +87,10 @@ locals {
       "name" : "TURBO_STREAMS_SECRET",
       "valueFrom" : "arn:aws:ssm:${var.region}:${local.account_id}:parameter/application/TURBO_STREAMS_SECRET"
     },
-    {
-      "name" : "ANYCABLE_HTTP_RPC_SECRET",
-      "valueFrom" : "arn:aws:ssm:${var.region}:${local.account_id}:parameter/application/ANYCABLE_HTTP_RPC_SECRET"
-    },
-    {
-      "name" : "ANYCABLE_RPC_HOST",
-      "valueFrom" : "arn:aws:ssm:${var.region}:${local.account_id}:parameter/application/ANYCABLE_RPC_HOST"
-    }
+    # {
+    #   "name" : "ANYCABLE_HTTP_RPC_SECRET",
+    #   "valueFrom" : "arn:aws:ssm:${var.region}:${local.account_id}:parameter/application/ANYCABLE_HTTP_RPC_SECRET"
+    # },
   ]
   grpc_container_command = ["bundle", "exec", "anycable", "--require", "./config/environment.rb"]
   grpc_container_environment_variables = [

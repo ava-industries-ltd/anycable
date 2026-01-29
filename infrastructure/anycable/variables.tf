@@ -281,3 +281,8 @@ variable "grpc_health_port" {
   type    = number
   default = 54321
 }
+
+variable "grpc_port" {
+  type    = number
+  default = 50051
+}
