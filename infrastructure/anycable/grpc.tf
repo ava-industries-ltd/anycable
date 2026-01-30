@@ -7,7 +7,7 @@ module "grpc" {
   ecs_subnet_ids                   = local.private_subnet_ids
   alb_subnet_ids                   = local.private_subnet_ids
   ecr_repository_url               = var.ava_emr_image
-  image_version                    = "97ea2fc7fdea53f0810a8f1adb33880124119ad8" #var.ava_emr_version
+  image_version                    = var.ava_emr_version
   ecs_ami_id                       = "ami-0fceb4a96619fcf41" # /aws/service/ecs/optimized-ami/amazon-linux-2023/recommended/image_id
   instance_type                    = var.grpc_instance_type
   desired_count                    = var.grpc_desired_count
