@@ -4,21 +4,14 @@ data "aws_caller_identity" "current" {
 data "aws_region" "current" {
 }
 
-data "aws_acm_certificate" "physician" {
-  domain = var.physician_domain
-
-  statuses = [
-    "ISSUED",
-  ]
-  most_recent = true
-}
-
 locals {
   account_id                 = data.aws_caller_identity.current.account_id
   anycable_name              = "${var.name}-anycable"
   grpc_name                  = "${var.name}-grpc"
   private_subnet_ids         = split(",", var.vpc_private_subnets)
   public_subnet_ids          = split(",", var.vpc_public_subnets)
+  anycable_subdomain         = "anycable.${var.domain_name}"
+  grpc_subdomain             = "grpc.${var.domain_name}"
   anycable_container_command = null
   anycable_container_environment_variables = [
     { "name" : "ENVIRONMENT", "value" : "${var.rails_env}" },

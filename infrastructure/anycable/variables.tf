@@ -21,8 +21,14 @@ variable "profile" {
 
 # Terraform variables
 
-variable "physician_domain" {
-  type = string
+variable "domain_name" {
+  type        = string
+  description = "Base domain for Anycable services (e.g. dev.avaemr.ca)"
+}
+
+variable "regional_certificate_arn" {
+  type        = string
+  description = "Regional ACM certificate ARN for Anycable ALBs"
 }
 
 # variable "web_acl_arn" {
