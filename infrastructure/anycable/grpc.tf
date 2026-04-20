@@ -11,7 +11,7 @@ module "grpc" {
   ecs_ami_id                       = "ami-0fceb4a96619fcf41" # /aws/service/ecs/optimized-ami/amazon-linux-2023/recommended/image_id
   instance_type                    = var.grpc_instance_type
   desired_count                    = var.grpc_desired_count
-  acm_certificate_arn              = data.aws_acm_certificate.physician.arn
+  acm_certificate_arn              = var.regional_certificate_arn
   container_cpu                    = var.grpc_cpu
   container_memory                 = var.grpc_memory
   container_environment            = local.grpc_container_environment_variables

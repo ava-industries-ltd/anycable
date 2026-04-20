@@ -11,7 +11,7 @@ module "anycable" {
   ecs_ami_id                       = "ami-0f3f945b57ae3ec8f" # /aws/service/ecs/optimized-ami/amazon-linux-2023/arm64/recommended/image_id
   instance_type                    = var.anycable_instance_type
   desired_count                    = var.anycable_desired_count
-  acm_certificate_arn              = data.aws_acm_certificate.physician.arn
+  acm_certificate_arn              = var.regional_certificate_arn
   container_cpu                    = var.anycable_cpu
   container_memory                 = var.anycable_memory
   container_environment            = local.anycable_container_environment_variables

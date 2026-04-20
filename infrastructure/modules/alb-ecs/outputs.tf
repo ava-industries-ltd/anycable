@@ -3,6 +3,11 @@ output "alb_dns_name" {
   value       = aws_lb.main.dns_name
 }
 
+output "alb_zone_id" {
+  description = "Hosted zone ID of the ALB"
+  value       = aws_lb.main.zone_id
+}
+
 output "alb_arn_suffix" {
   description = "The ARN suffix of the ALB (for CloudWatch dimensions)"
   value       = aws_lb.main.arn_suffix
@@ -49,31 +54,31 @@ output "cloudwatch_log_group_name" {
 }
 
 output "ecs_security_group_id" {
-    description = "ECS Task security group"
-    value = aws_security_group.ecs_tasks.id
+  description = "ECS Task security group"
+  value       = aws_security_group.ecs_tasks.id
 }
 
 output "alb_security_group_id" {
-    description = "ECS Task security group"
-    value = aws_security_group.alb.id
+  description = "ECS Task security group"
+  value       = aws_security_group.alb.id
 }
 
 output "task_role_name" {
-    description = "ECS Task role name"
-    value = aws_iam_role.task.name
+  description = "ECS Task role name"
+  value       = aws_iam_role.task.name
 }
 
 output "task_role_arn" {
-    description = "ECS Task role ARN"
-    value = aws_iam_role.task.arn
+  description = "ECS Task role ARN"
+  value       = aws_iam_role.task.arn
 }
 
 output "task_execution_role_name" {
-    description = "ECS Task Execution role name"
-    value = aws_iam_role.task_execution.name
+  description = "ECS Task Execution role name"
+  value       = aws_iam_role.task_execution.name
 }
 
 output "task_execution_role_arn" {
-    description = "ECS Task Execution role ARN"
-    value = aws_iam_role.task_execution.arn
+  description = "ECS Task Execution role ARN"
+  value       = aws_iam_role.task_execution.arn
 }
