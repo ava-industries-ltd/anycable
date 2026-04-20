@@ -85,7 +85,7 @@ locals {
     #   "valueFrom" : "arn:aws:ssm:${var.region}:${local.account_id}:parameter/application/ANYCABLE_HTTP_RPC_SECRET"
     # },
   ]
-  grpc_container_command = ["bundle", "exec", "anycable", "--require", "./config/environment.rb"]
+  grpc_container_command = ["bundle", "exec", "anycable", "--rpc-host=0.0.0.0:${var.grpc_port}", "--require", "./config/environment.rb"]
   grpc_container_environment_variables = [
     { "name" : "ENVIRONMENT", "value" : "${var.rails_env}" },
     { "name" : "RAILS_ENV", "value" : "${var.rails_env}" },
@@ -102,8 +102,7 @@ locals {
     # to keep it consistent across the board
     { "name" : "REDIS_PORT", "value" : "${var.redis_port}" },
     { "name" : "REDIS_ENDPOINT", "value" : "rediss://${var.redis_endpoint}:${var.redis_port}" },
-    { "name" : "ANYCABLE_HTTP_HEALTH_PORT", "value" : "${var.grpc_health_port}" },
-    { "name" : "ANYCABLE_RPC_HOST", "value" : "0.0.0.0:50051" }
+    { "name" : "ANYCABLE_HTTP_HEALTH_PORT", "value" : "${var.grpc_health_port}" }
   ]
   grpc_container_secrets = [
     {
