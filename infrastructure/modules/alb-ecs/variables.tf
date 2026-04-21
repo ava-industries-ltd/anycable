@@ -35,6 +35,12 @@ variable "allowed_ipv6_cidr_blocks" {
   default     = ["::/0"]
 }
 
+variable "alb_ingress_security_group_ids" {
+  description = "Security groups allowed to access the ALB listener port"
+  type        = list(string)
+  default     = []
+}
+
 variable "internal_alb" {
   description = "Whether the ALB should be internal"
   type        = bool
@@ -62,6 +68,12 @@ variable "health_check_path" {
   description = "Path for ALB health checks"
   type        = string
   default     = "/health"
+}
+
+variable "health_check_port" {
+  description = "Port for ALB health checks. Use \"traffic-port\" to target the service port"
+  type        = string
+  default     = "traffic-port"
 }
 
 variable "health_check_healthy_threshold" {
@@ -328,7 +340,7 @@ variable "alb_logging_bucket" {
 }
 
 variable "use_grpc" {
-  description = "If true, configure the target group and listener for gRPC on rpc_port"
+  description = "If true, terminate TLS at the ALB listener and forward gRPC traffic to the backend over HTTP/2"
   type        = bool
   default     = false
 }

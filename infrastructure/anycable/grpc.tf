@@ -22,10 +22,12 @@ module "grpc" {
   health_check_timeout             = var.grpc_health_check_timeout
   health_check_interval            = var.grpc_health_check_interval
   health_check_path                = var.grpc_health_check_path
+  health_check_port                = tostring(var.grpc_health_port)
   health_check_matcher             = var.grpc_health_check_matcher
   internal_alb                     = true
   use_grpc                         = true
   container_port                   = 50051
+  alb_ingress_security_group_ids   = [module.anycable.ecs_security_group_id]
   enable_ecs_autoscaling           = false
   alb_logging_bucket               = "${var.name}-${var.environment}-${var.region}-logs"
 

@@ -3,20 +3,36 @@ resource "aws_security_group" "alb" {
   description = "Security group for ALB"
   vpc_id      = var.vpc_id
 
-  ingress {
-    from_port        = 80
-    to_port          = 80
-    protocol         = "tcp"
-    cidr_blocks      = var.allowed_cidr_blocks
-    ipv6_cidr_blocks = var.allowed_ipv6_cidr_blocks
+  dynamic "ingress" {
+    for_each = var.use_grpc ? [] : [80]
+    content {
+      from_port        = ingress.value
+      to_port          = ingress.value
+      protocol         = "tcp"
+      cidr_blocks      = var.allowed_cidr_blocks
+      ipv6_cidr_blocks = var.allowed_ipv6_cidr_blocks
+    }
   }
 
-  ingress {
-    from_port        = 443
-    to_port          = 443
-    protocol         = "tcp"
-    cidr_blocks      = var.allowed_cidr_blocks
-    ipv6_cidr_blocks = var.allowed_ipv6_cidr_blocks
+  dynamic "ingress" {
+    for_each = var.use_grpc ? [] : [443]
+    content {
+      from_port        = ingress.value
+      to_port          = ingress.value
+      protocol         = "tcp"
+      cidr_blocks      = var.allowed_cidr_blocks
+      ipv6_cidr_blocks = var.allowed_ipv6_cidr_blocks
+    }
+  }
+
+  dynamic "ingress" {
+    for_each = toset(var.alb_ingress_security_group_ids)
+    content {
+      from_port       = local.alb_listener_port
+      to_port         = local.alb_listener_port
+      protocol        = "tcp"
+      security_groups = [ingress.value]
+    }
   }
 
   egress {
@@ -57,7 +73,7 @@ resource "aws_lb" "main" {
 
 resource "aws_lb_listener" "https" {
   load_balancer_arn = aws_lb.main.arn
-  port              = var.use_grpc ? var.container_port : 443
+  port              = local.alb_listener_port
   protocol          = "HTTPS"
   ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
   certificate_arn   = var.acm_certificate_arn
@@ -91,11 +107,12 @@ resource "aws_lb_target_group" "main" {
   port             = var.container_port
   vpc_id           = var.vpc_id
   target_type      = "ip"
-  protocol         = var.use_grpc ? "HTTPS" : "HTTP"
-  protocol_version = var.use_grpc ? "GRPC" : null
+  protocol         = "HTTP"
+  protocol_version = var.use_grpc ? "HTTP2" : null
 
   health_check {
-    # protocol            = "HTTPS"
+    protocol            = "HTTP"
+    port                = var.health_check_port
     healthy_threshold   = var.health_check_healthy_threshold
     unhealthy_threshold = var.health_check_unhealthy_threshold
     timeout             = var.health_check_timeout

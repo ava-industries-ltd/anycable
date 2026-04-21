@@ -23,6 +23,16 @@ resource "aws_security_group" "ecs_tasks" {
     security_groups = [aws_security_group.alb.id]
   }
 
+  dynamic "ingress" {
+    for_each = local.has_dedicated_health_check ? [local.health_check_port_number] : []
+    content {
+      from_port       = ingress.value
+      to_port         = ingress.value
+      protocol        = "tcp"
+      security_groups = [aws_security_group.alb.id]
+    }
+  }
+
   egress {
     from_port        = 0
     to_port          = 0
@@ -63,13 +73,19 @@ resource "aws_ecs_task_definition" "main" {
       cpu       = var.container_cpu
       memory    = var.container_memory
       essential = true
-      portMappings = [
+      portMappings = concat([
         {
           containerPort = var.container_port
           hostPort      = var.container_port
           protocol      = "tcp"
         }
-      ]
+        ], local.has_dedicated_health_check ? [
+        {
+          containerPort = local.health_check_port_number
+          hostPort      = local.health_check_port_number
+          protocol      = "tcp"
+        }
+      ] : [])
       environment          = var.container_environment
       secrets              = var.container_secrets
       command              = var.container_command
