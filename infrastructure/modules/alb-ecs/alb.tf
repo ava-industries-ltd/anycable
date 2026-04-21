@@ -3,20 +3,36 @@ resource "aws_security_group" "alb" {
   description = "Security group for ALB"
   vpc_id      = var.vpc_id
 
-  ingress {
-    from_port        = 80
-    to_port          = 80
-    protocol         = "tcp"
-    cidr_blocks      = var.allowed_cidr_blocks
-    ipv6_cidr_blocks = var.allowed_ipv6_cidr_blocks
+  dynamic "ingress" {
+    for_each = var.enable_http_redirect_listener && (length(var.allowed_cidr_blocks) > 0 || length(var.allowed_ipv6_cidr_blocks) > 0) ? [80] : []
+    content {
+      from_port        = ingress.value
+      to_port          = ingress.value
+      protocol         = "tcp"
+      cidr_blocks      = var.allowed_cidr_blocks
+      ipv6_cidr_blocks = var.allowed_ipv6_cidr_blocks
+    }
   }
 
-  ingress {
-    from_port        = 443
-    to_port          = 443
-    protocol         = "tcp"
-    cidr_blocks      = var.allowed_cidr_blocks
-    ipv6_cidr_blocks = var.allowed_ipv6_cidr_blocks
+  dynamic "ingress" {
+    for_each = length(var.allowed_cidr_blocks) > 0 || length(var.allowed_ipv6_cidr_blocks) > 0 ? [var.listener_port] : []
+    content {
+      from_port        = ingress.value
+      to_port          = ingress.value
+      protocol         = "tcp"
+      cidr_blocks      = var.allowed_cidr_blocks
+      ipv6_cidr_blocks = var.allowed_ipv6_cidr_blocks
+    }
+  }
+
+  dynamic "ingress" {
+    for_each = toset(var.alb_ingress_security_group_ids)
+    content {
+      from_port       = var.listener_port
+      to_port         = var.listener_port
+      protocol        = "tcp"
+      security_groups = [ingress.value]
+    }
   }
 
   egress {
@@ -57,7 +73,7 @@ resource "aws_lb" "main" {
 
 resource "aws_lb_listener" "https" {
   load_balancer_arn = aws_lb.main.arn
-  port              = var.use_grpc ? var.container_port : 443
+  port              = var.listener_port
   protocol          = "HTTPS"
   ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
   certificate_arn   = var.acm_certificate_arn
@@ -69,7 +85,7 @@ resource "aws_lb_listener" "https" {
 }
 
 resource "aws_lb_listener" "http" {
-  count             = var.use_grpc ? 0 : 1
+  count             = var.enable_http_redirect_listener ? 1 : 0
   load_balancer_arn = aws_lb.main.arn
   port              = 80
   protocol          = "HTTP"
@@ -91,11 +107,10 @@ resource "aws_lb_target_group" "main" {
   port             = var.container_port
   vpc_id           = var.vpc_id
   target_type      = "ip"
-  protocol         = var.use_grpc ? "HTTPS" : "HTTP"
-  protocol_version = var.use_grpc ? "GRPC" : null
+  protocol         = var.target_group_protocol
+  protocol_version = var.target_group_protocol_version
 
   health_check {
-    # protocol            = "HTTPS"
     healthy_threshold   = var.health_check_healthy_threshold
     unhealthy_threshold = var.health_check_unhealthy_threshold
     timeout             = var.health_check_timeout

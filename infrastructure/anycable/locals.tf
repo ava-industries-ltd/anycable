@@ -33,7 +33,8 @@ locals {
     { "name" : "ANYCABLE_REDIS_URL", "value" : "rediss://${var.redis_endpoint}:${var.redis_port}" },
     { "name" : "ANYCABLE_HOST", "value" : "0.0.0.0" },
     { "name" : "ANYCABLE_PORT", "value" : "80" },
-    { "name" : "ANYCABLE_RPC_HOST", "value" : "${module.grpc.alb_dns_name}:${var.grpc_port}" },
+    { "name" : "ANYCABLE_RPC_HOST", "value" : "${local.grpc_subdomain}:${var.grpc_port}" },
+    { "name" : "ANYCABLE_RPC_ENABLE_TLS", "value" : "true" },
     { "name" : "ANYCABLE_RPC_PORT", "value" : "${var.grpc_port}" },
     { "name" : "ANYCABLE_REDIS_TLS", "value" : "false" },
     { "name" : "ANYCABLE_PATH", "value" : "/cable" },
@@ -101,8 +102,7 @@ locals {
     # For rails we used REDIS_ENDPOINT and REDIS_PORT variabels - so we're doing the same here
     # to keep it consistent across the board
     { "name" : "REDIS_PORT", "value" : "${var.redis_port}" },
-    { "name" : "REDIS_ENDPOINT", "value" : "rediss://${var.redis_endpoint}:${var.redis_port}" },
-    { "name" : "ANYCABLE_HTTP_HEALTH_PORT", "value" : "${var.grpc_health_port}" }
+    { "name" : "REDIS_ENDPOINT", "value" : "rediss://${var.redis_endpoint}:${var.redis_port}" }
   ]
   grpc_container_secrets = [
     {

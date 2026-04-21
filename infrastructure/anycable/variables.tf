@@ -278,16 +278,6 @@ variable "ava_emr_version" {
   type = string
 }
 
-variable "grpc_health_path" {
-  type    = string
-  default = "/health"
-}
-
-variable "grpc_health_port" {
-  type    = number
-  default = 54321
-}
-
 variable "grpc_port" {
   type    = number
   default = 50051
