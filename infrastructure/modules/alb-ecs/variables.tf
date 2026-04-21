@@ -41,6 +41,18 @@ variable "alb_ingress_security_group_ids" {
   default     = []
 }
 
+variable "listener_port" {
+  description = "Port exposed by the HTTPS ALB listener"
+  type        = number
+  default     = 443
+}
+
+variable "enable_http_redirect_listener" {
+  description = "Whether to expose an HTTP listener on port 80 that redirects to HTTPS"
+  type        = bool
+  default     = true
+}
+
 variable "internal_alb" {
   description = "Whether the ALB should be internal"
   type        = bool
@@ -68,12 +80,6 @@ variable "health_check_path" {
   description = "Path for ALB health checks"
   type        = string
   default     = "/health"
-}
-
-variable "health_check_port" {
-  description = "Port for ALB health checks. Use \"traffic-port\" to target the service port"
-  type        = string
-  default     = "traffic-port"
 }
 
 variable "health_check_healthy_threshold" {
@@ -339,8 +345,14 @@ variable "alb_logging_bucket" {
   default = null
 }
 
-variable "use_grpc" {
-  description = "If true, terminate TLS at the ALB listener and forward gRPC traffic to the backend over HTTP/2"
-  type        = bool
-  default     = false
+variable "target_group_protocol" {
+  description = "Protocol used by the ALB target group"
+  type        = string
+  default     = "HTTP"
+}
+
+variable "target_group_protocol_version" {
+  description = "Protocol version used by the ALB target group"
+  type        = string
+  default     = null
 }

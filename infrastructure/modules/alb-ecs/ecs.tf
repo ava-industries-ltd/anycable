@@ -16,23 +16,6 @@ resource "aws_security_group" "ecs_tasks" {
   description = "Security group for ECS tasks"
   vpc_id      = var.vpc_id
 
-  ingress {
-    from_port       = var.container_port
-    to_port         = var.container_port
-    protocol        = "tcp"
-    security_groups = [aws_security_group.alb.id]
-  }
-
-  dynamic "ingress" {
-    for_each = local.has_dedicated_health_check ? [local.health_check_port_number] : []
-    content {
-      from_port       = ingress.value
-      to_port         = ingress.value
-      protocol        = "tcp"
-      security_groups = [aws_security_group.alb.id]
-    }
-  }
-
   egress {
     from_port        = 0
     to_port          = 0
@@ -46,6 +29,14 @@ resource "aws_security_group" "ecs_tasks" {
   lifecycle {
     create_before_destroy = true
   }
+}
+
+resource "aws_vpc_security_group_ingress_rule" "ecs_tasks_service" {
+  security_group_id            = aws_security_group.ecs_tasks.id
+  referenced_security_group_id = aws_security_group.alb.id
+  from_port                    = var.container_port
+  to_port                      = var.container_port
+  ip_protocol                  = "tcp"
 }
 
 # CloudWatch Log Group
@@ -73,19 +64,13 @@ resource "aws_ecs_task_definition" "main" {
       cpu       = var.container_cpu
       memory    = var.container_memory
       essential = true
-      portMappings = concat([
+      portMappings = [
         {
           containerPort = var.container_port
           hostPort      = var.container_port
           protocol      = "tcp"
         }
-        ], local.has_dedicated_health_check ? [
-        {
-          containerPort = local.health_check_port_number
-          hostPort      = local.health_check_port_number
-          protocol      = "tcp"
-        }
-      ] : [])
+      ]
       environment          = var.container_environment
       secrets              = var.container_secrets
       command              = var.container_command

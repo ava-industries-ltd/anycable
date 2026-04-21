@@ -207,7 +207,7 @@ variable "anycable_health_check_matcher" {
 variable "grpc_health_check_path" {
   description = "Path for ALB health checks"
   type        = string
-  default     = "/health"
+  default     = "/grpc.health.v1.Health/Check"
 }
 
 variable "grpc_health_check_healthy_threshold" {
@@ -237,7 +237,7 @@ variable "grpc_health_check_interval" {
 variable "grpc_health_check_matcher" {
   description = "HTTP response codes to consider as healthy"
   type        = string
-  default     = "200-399"
+  default     = "0"
 }
 
 variable "anycable_desired_count" {
@@ -276,16 +276,6 @@ variable "ava_emr_image" {
 
 variable "ava_emr_version" {
   type = string
-}
-
-variable "grpc_health_path" {
-  type    = string
-  default = "/health"
-}
-
-variable "grpc_health_port" {
-  type    = number
-  default = 54321
 }
 
 variable "grpc_port" {

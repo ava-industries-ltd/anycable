@@ -4,7 +4,7 @@ resource "aws_security_group" "alb" {
   vpc_id      = var.vpc_id
 
   dynamic "ingress" {
-    for_each = var.use_grpc ? [] : [80]
+    for_each = var.enable_http_redirect_listener && (length(var.allowed_cidr_blocks) > 0 || length(var.allowed_ipv6_cidr_blocks) > 0) ? [80] : []
     content {
       from_port        = ingress.value
       to_port          = ingress.value
@@ -15,7 +15,7 @@ resource "aws_security_group" "alb" {
   }
 
   dynamic "ingress" {
-    for_each = var.use_grpc ? [] : [443]
+    for_each = length(var.allowed_cidr_blocks) > 0 || length(var.allowed_ipv6_cidr_blocks) > 0 ? [var.listener_port] : []
     content {
       from_port        = ingress.value
       to_port          = ingress.value
@@ -28,8 +28,8 @@ resource "aws_security_group" "alb" {
   dynamic "ingress" {
     for_each = toset(var.alb_ingress_security_group_ids)
     content {
-      from_port       = local.alb_listener_port
-      to_port         = local.alb_listener_port
+      from_port       = var.listener_port
+      to_port         = var.listener_port
       protocol        = "tcp"
       security_groups = [ingress.value]
     }
@@ -73,7 +73,7 @@ resource "aws_lb" "main" {
 
 resource "aws_lb_listener" "https" {
   load_balancer_arn = aws_lb.main.arn
-  port              = local.alb_listener_port
+  port              = var.listener_port
   protocol          = "HTTPS"
   ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
   certificate_arn   = var.acm_certificate_arn
@@ -85,7 +85,7 @@ resource "aws_lb_listener" "https" {
 }
 
 resource "aws_lb_listener" "http" {
-  count             = var.use_grpc ? 0 : 1
+  count             = var.enable_http_redirect_listener ? 1 : 0
   load_balancer_arn = aws_lb.main.arn
   port              = 80
   protocol          = "HTTP"
@@ -107,12 +107,10 @@ resource "aws_lb_target_group" "main" {
   port             = var.container_port
   vpc_id           = var.vpc_id
   target_type      = "ip"
-  protocol         = "HTTP"
-  protocol_version = var.use_grpc ? "HTTP2" : null
+  protocol         = var.target_group_protocol
+  protocol_version = var.target_group_protocol_version
 
   health_check {
-    protocol            = "HTTP"
-    port                = var.health_check_port
     healthy_threshold   = var.health_check_healthy_threshold
     unhealthy_threshold = var.health_check_unhealthy_threshold
     timeout             = var.health_check_timeout
