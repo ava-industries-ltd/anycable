@@ -102,8 +102,7 @@ locals {
     # For rails we used REDIS_ENDPOINT and REDIS_PORT variabels - so we're doing the same here
     # to keep it consistent across the board
     { "name" : "REDIS_PORT", "value" : "${var.redis_port}" },
-    { "name" : "REDIS_ENDPOINT", "value" : "rediss://${var.redis_endpoint}:${var.redis_port}" },
-    { "name" : "ANYCABLE_HTTP_HEALTH_PORT", "value" : "${var.grpc_health_port}" }
+    { "name" : "REDIS_ENDPOINT", "value" : "rediss://${var.redis_endpoint}:${var.redis_port}" }
   ]
   grpc_container_secrets = [
     {
