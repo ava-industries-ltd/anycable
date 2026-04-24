@@ -42,11 +42,35 @@ RUN go build -tags mrb \
     cmd/anycable-go/main.go
 
 #####################################
-# Stage 2: Slim Runtime             #
+# Stage 2: grpcurl                  #
+#####################################
+FROM golang:1.23-bullseye AS grpcurl
+
+ENV CGO_ENABLED=0 \
+    GOTOOLCHAIN=auto
+
+RUN go install github.com/fullstorydev/grpcurl/cmd/grpcurl@v1.9.3
+
+#####################################
+# Stage 3: Slim Runtime             #
 #####################################
 FROM debian:bullseye-slim
 
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      ca-certificates \
+      curl \
+      dnsutils \
+      iproute2 \
+      iputils-ping \
+      netcat-openbsd \
+      openssl \
+    && \
+    rm -rf /var/lib/apt/lists/*
+
 COPY --from=builder /src/anycable-go-mrb /usr/local/bin/anycable-go
+COPY --from=grpcurl /go/bin/grpcurl /usr/local/bin/grpcurl
+COPY etc/rpc.proto /usr/local/share/anycable/rpc.proto
 
 USER nobody
 

@@ -103,7 +103,8 @@ resource "aws_lb_listener" "http" {
 
 # ALB Target Group
 resource "aws_lb_target_group" "main" {
-  name             = "${var.name}-target-group"
+  name             = var.target_group_name_prefix == null ? "${var.name}-target-group" : null
+  name_prefix      = var.target_group_name_prefix
   port             = var.container_port
   vpc_id           = var.vpc_id
   target_type      = "ip"

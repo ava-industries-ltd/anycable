@@ -112,6 +112,17 @@ variable "health_check_matcher" {
   default     = "200-299"
 }
 
+variable "target_group_name_prefix" {
+  description = "Optional target group name prefix. Use this with create_before_destroy for target groups that may need replacement."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.target_group_name_prefix == null || length(var.target_group_name_prefix) <= 6
+    error_message = "target_group_name_prefix must be 6 characters or fewer."
+  }
+}
+
 variable "cluster_name" {
   description = "ECS Cluster"
   type        = string

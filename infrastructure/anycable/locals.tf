@@ -35,7 +35,6 @@ locals {
     { "name" : "ANYCABLE_PORT", "value" : "80" },
     { "name" : "ANYCABLE_RPC_HOST", "value" : "${local.grpc_subdomain}:${var.grpc_port}" },
     { "name" : "ANYCABLE_RPC_ENABLE_TLS", "value" : "true" },
-    { "name" : "ANYCABLE_RPC_PORT", "value" : "${var.grpc_port}" },
     { "name" : "ANYCABLE_REDIS_TLS", "value" : "false" },
     { "name" : "ANYCABLE_PATH", "value" : "/cable" },
     { "name" : "ANYCABLE_ALLOWED_ORIGINS", "value" : "*.avaemr.ca" },
@@ -46,7 +45,9 @@ locals {
     { "name" : "ANYCABLE_PUBSUB", "value" : "redis" },
     { "name" : "ANYCABLE_HISTORY_TTL", "value" : "120" },
     { "name" : "ANYCABLE_HISTORY_LIMIT", "value" : "100" },
-    { "name" : "ANYCABLE_RPC_CONCURRENCY", "value" : "28" }
+    { "name" : "ANYCABLE_RPC_CONCURRENCY", "value" : "28" },
+    { "name" : "ANYCABLE_DEBUG", "value" : "true" },
+    { "name" : "ANYCABLE_LOG_LEVEL", "value" : "debug" },
   ]
   anycable_container_secrets = [
     {

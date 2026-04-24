@@ -27,13 +27,16 @@ module "grpc" {
   enable_http_redirect_listener    = false
   internal_alb                     = true
   container_port                   = 50051
-  target_group_protocol            = "HTTPS"
-  target_group_protocol_version    = "GRPC"
-  allowed_cidr_blocks              = []
-  allowed_ipv6_cidr_blocks         = []
-  alb_ingress_security_group_ids   = [module.anycable.ecs_security_group_id]
-  enable_ecs_autoscaling           = false
-  alb_logging_bucket               = "${var.name}-${var.environment}-${var.region}-logs"
+  target_group_name_prefix         = "avagr-"
+  # The ALB listener terminates TLS for anycable-go; the Rails AnyCable RPC
+  # server itself listens with plaintext gRPC on 50051.
+  target_group_protocol          = "HTTP"
+  target_group_protocol_version  = "GRPC"
+  allowed_cidr_blocks            = []
+  allowed_ipv6_cidr_blocks       = []
+  alb_ingress_security_group_ids = [module.anycable.ecs_security_group_id]
+  enable_ecs_autoscaling         = false
+  alb_logging_bucket             = "${var.name}-${var.environment}-${var.region}-logs"
 
   tags = {
     Environment = var.environment
