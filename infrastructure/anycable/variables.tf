@@ -51,10 +51,6 @@ variable "vpc_public_subnets" {
   description = "Public Subnets"
 }
 
-variable "master_account_id" {
-  type = string
-}
-
 variable "grpc_cpu" {
   type    = number
   default = 2048
@@ -271,7 +267,8 @@ variable "log_retention_days" {
 }
 
 variable "ava_emr_image" {
-  type = string
+  type    = string
+  default = "923673750962.dkr.ecr.ca-central-1.amazonaws.com/ava-emr"
 }
 
 variable "ava_emr_version" {

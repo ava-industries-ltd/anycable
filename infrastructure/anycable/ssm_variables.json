@@ -3,7 +3,6 @@
         "name": "config/name",
         "environment": "config/environment",
         "region": "config/region",
-        "master_account_id": "config/master_account_id",
         "rails_env": "config/rails_env",
         "domain_name": "config/domain_name",
         "regional_certificate_arn": "config/certificate/regional_certificate",
