@@ -8,7 +8,7 @@ module "anycable" {
   alb_subnet_ids                   = local.public_subnet_ids
   ecr_repository_url               = var.ava_anycable_image
   image_version                    = var.anycable_version
-  ecs_ami_id                       = "ami-0f3f945b57ae3ec8f" # /aws/service/ecs/optimized-ami/amazon-linux-2023/arm64/recommended/image_id
+  ecs_ami_id                       = "ami-0fcea3c6514e296a3" # /aws/service/ecs/optimized-ami/amazon-linux-2023/arm64/recommended/image_id
   instance_type                    = var.anycable_instance_type
   desired_count                    = var.anycable_desired_count
   acm_certificate_arn              = var.regional_certificate_arn
