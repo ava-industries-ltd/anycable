@@ -64,17 +64,17 @@ variable "grpc_container_port" {
 
 variable "grpc_memory" {
   type    = number
-  default = 3800
+  default = 8000
 }
 
 variable "anycable_cpu" {
   type    = number
-  default = 4096
+  default = 2048
 }
 
 variable "anycable_memory" {
   type    = number
-  default = 15750
+  default = 3900
 }
 
 variable "rails_env" {
@@ -239,7 +239,7 @@ variable "grpc_health_check_matcher" {
 variable "anycable_desired_count" {
   description = "Desired number of tasks/instances for Anycable"
   type        = number
-  default     = 1
+  default     = 2
 }
 
 variable "grpc_desired_count" {
@@ -251,13 +251,13 @@ variable "grpc_desired_count" {
 variable "anycable_instance_type" {
   description = "EC2 instance type for Anycable"
   type        = string
-  default     = "t4g.xlarge"
+  default     = "c8g.large"
 }
 
 variable "grpc_instance_type" {
   description = "EC2 instance type for gRPC"
   type        = string
-  default     = "t3.medium"
+  default     = "m8i.large"
 }
 
 variable "log_retention_days" {
