@@ -53,7 +53,7 @@ variable "vpc_public_subnets" {
 
 variable "grpc_cpu" {
   type    = number
-  default = 1900
+  default = 2048
 }
 
 variable "grpc_container_port" {
@@ -64,17 +64,17 @@ variable "grpc_container_port" {
 
 variable "grpc_memory" {
   type    = number
-  default = 7000
+  default = 7730
 }
 
 variable "anycable_cpu" {
   type    = number
-  default = 1900
+  default = 2048
 }
 
 variable "anycable_memory" {
   type    = number
-  default = 3200
+  default = 3760
 }
 
 variable "rails_env" {
