@@ -29,6 +29,12 @@
         "ava_emr_version": "config/ava_emr_version",
         "anycable_desired_count": "config/anycable_desired_count",
         "grpc_desired_count": "config/grpc_desired_count",
+        "grpc_cpu": "config/grpc_cpu",
+        "grpc_memory": "config/grpc_memory",
+        "anycable_cpu": "config/anycable_cpu",
+        "anycable_memory": "config/anycable_memory",
+        "anycable_instance_type": "config/anycable_instance_type",
+        "grpc_instance_type": "config/grpc_instance_type",
         "tags": "config/tags_json"
     }
 }
