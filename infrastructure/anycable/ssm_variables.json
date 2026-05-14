@@ -27,6 +27,8 @@
         "redis_security_group_id": "config/cache/redis_security_group_id",
         "ava_emr_image": "config/ava_emr_image",
         "ava_emr_version": "config/ava_emr_version",
+        "anycable_desired_count": "config/anycable_desired_count",
+        "grpc_desired_count": "config/grpc_desired_count",
         "tags": "config/tags_json"
     }
 }
