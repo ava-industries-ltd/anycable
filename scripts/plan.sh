@@ -14,7 +14,7 @@ usage ()
   exit
 }
 
-COMPONENT='anycable_go'
+COMPONENT='anycable'
 COMPONENT_SANITIZED=$(tr '-' '_'<<< $COMPONENT)
 REGION='ca-central-1'
 BACKEND_PROFILE=''
@@ -104,9 +104,6 @@ then
   # tofu providers lock -platform=windows_amd64 -platform=darwin_amd64 -platform=linux_amd64
 
   tofu plan -input=false $TERRAFORM_PROFILE
-
-  aws ${AWS_PROFILE} ${AWS_REGION} ssm put-parameter --name "/ava/${ENVIRONMENT}/config/$MODULE/variables_hash" --value ${VARIABLES_HASH} --type String --overwrite
-  aws ${AWS_PROFILE} ${AWS_REGION} ssm put-parameter --name "/ava/${ENVIRONMENT}/config/$MODULE/${MODULE_DEPLOYED_COMMIT_ID_SSM}" --value ${MODULE_COMMIT_ID} --type String --overwrite
 else
   echo "Skipping deployment of module ${MODULE} in $ENVIRONMENT environment."
 fi
