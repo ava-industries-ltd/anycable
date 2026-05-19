@@ -356,6 +356,36 @@ variable "alb_logging_bucket" {
   default = null
 }
 
+variable "enable_alb_monitoring_alarms" {
+  description = "Create CloudWatch alarms for ALB health and error metrics."
+  type        = bool
+  default     = true
+}
+
+variable "alb_alarm_actions" {
+  description = "Optional CloudWatch alarm actions for ALB alarms."
+  type        = list(string)
+  default     = []
+}
+
+variable "alb_ok_actions" {
+  description = "Optional CloudWatch OK actions for ALB alarms."
+  type        = list(string)
+  default     = []
+}
+
+variable "alb_latency_threshold_seconds" {
+  description = "Average target response time threshold in seconds."
+  type        = number
+  default     = 2
+}
+
+variable "alb_5xx_threshold" {
+  description = "ALB 5XX count threshold per evaluation period."
+  type        = number
+  default     = 10
+}
+
 variable "target_group_protocol" {
   description = "Protocol used by the ALB target group"
   type        = string
