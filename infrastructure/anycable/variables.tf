@@ -13,6 +13,11 @@ variable "region" {
   description = "AWS Region"
 }
 
+variable "alb_access_logs_bucket_name" {
+  type    = string
+  default = null
+}
+
 variable "profile" {
   type        = string
   description = "AWS Profile"

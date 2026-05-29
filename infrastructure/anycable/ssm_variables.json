@@ -35,6 +35,7 @@
         "anycable_memory": "config/anycable_memory",
         "anycable_instance_type": "config/anycable_instance_type",
         "grpc_instance_type": "config/grpc_instance_type",
-        "tags": "config/tags_json"
+        "tags": "config/tags_json",
+        "alb_access_logs_bucket_name": "config/alb_access_logs_bucket_name"
     }
 }

@@ -36,7 +36,7 @@ module "grpc" {
   allowed_ipv6_cidr_blocks       = []
   alb_ingress_security_group_ids = [module.anycable.ecs_security_group_id]
   enable_ecs_autoscaling         = false
-  alb_logging_bucket             = "${var.name}-${var.environment}-${var.region}-logs"
+  alb_logging_bucket             = coalesce(var.alb_access_logs_bucket_name, "${var.name}-${var.environment}-${var.region}-logs")
 
   tags = {
     Environment = var.environment

@@ -27,7 +27,7 @@ module "anycable" {
   # Enable ECS autoscaling
   enable_ecs_autoscaling = false
 
-  alb_logging_bucket = "${var.name}-${var.environment}-${var.region}-logs"
+  alb_logging_bucket = coalesce(var.alb_access_logs_bucket_name, "${var.name}-${var.environment}-${var.region}-logs")
 
   tags = {
     Environment = var.environment
