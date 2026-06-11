@@ -120,6 +120,15 @@ resource "aws_lb_target_group" "main" {
     matcher             = var.health_check_matcher
   }
 
+  dynamic "stickiness" {
+    for_each = var.target_group_stickiness_enabled ? [1] : []
+
+    content {
+      type            = "lb_cookie"
+      cookie_duration = var.target_group_stickiness_duration
+    }
+  }
+
   tags = var.tags
 
   lifecycle {

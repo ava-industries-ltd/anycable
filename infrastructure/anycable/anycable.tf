@@ -23,6 +23,8 @@ module "anycable" {
   health_check_interval            = var.anycable_health_check_interval
   health_check_path                = var.anycable_health_check_path
   health_check_matcher             = var.anycable_health_check_matcher
+  target_group_stickiness_enabled  = true
+  target_group_stickiness_duration = 300
 
   # Enable ECS autoscaling
   enable_ecs_autoscaling = false

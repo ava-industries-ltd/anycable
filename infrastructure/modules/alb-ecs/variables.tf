@@ -123,6 +123,18 @@ variable "target_group_name_prefix" {
   }
 }
 
+variable "target_group_stickiness_enabled" {
+  description = "Whether to enable ALB target group stickiness."
+  type        = bool
+  default     = false
+}
+
+variable "target_group_stickiness_duration" {
+  description = "Duration, in seconds, for the ALB-generated stickiness cookie."
+  type        = number
+  default     = 300
+}
+
 variable "cluster_name" {
   description = "ECS Cluster"
   type        = string
