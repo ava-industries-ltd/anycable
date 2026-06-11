@@ -36,7 +36,7 @@ locals {
     { "name" : "ANYCABLE_RPC_HOST", "value" : "${local.grpc_subdomain}:${var.grpc_port}" },
     { "name" : "ANYCABLE_RPC_ENABLE_TLS", "value" : "true" },
     { "name" : "ANYCABLE_PATH", "value" : "/cable" },
-    { "name" : "ANYCABLE_ALLOWED_ORIGINS", "value" : "*.avaemr.ca" },
+    { "name" : "ANYCABLE_ALLOWED_ORIGINS", "value" : "avaemr.ca,*.avaemr.ca" },
     { "name" : "ANYCABLE_TURBO_STREAMS", "value" : "true" },
     { "name" : "ANYCABLE_REDIS_CHANNEL", "value" : "__anycable__" },
     { "name" : "ANYCABLE_BROADCAST_ADAPTER", "value" : "redisx" },
