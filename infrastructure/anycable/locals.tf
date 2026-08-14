@@ -100,10 +100,9 @@ locals {
     { "name" : "AUDIT_POSTGRES_REPLICA_DATABASE", "value" : "${var.audit_replica_database}" },
     { "name" : "AUDIT_POSTGRES_REPLICA_ENDPOINT", "value" : "${var.audit_replica_endpoint}" },
     { "name" : "AUDIT_POSTGRES_REPLICA_PORT", "value" : "${var.audit_replica_port}" },
-    # For rails we use the REDIS_ENDPOINT and REDIS_PORT variables so the
-    # AnyCable configuration can construct the Redis URL consistently.
-    { "name" : "REDIS_PORT", "value" : "${var.redis_port}" },
-    { "name" : "REDIS_ENDPOINT", "value" : "${var.redis_endpoint}" }
+    # Rails loads its cache Redis settings from the legacy /database/redis SSM path.
+    # Use the AnyCable-specific setting so the broadcaster remains on Pub/Sub Valkey.
+    { "name" : "ANYCABLE_REDIS_URL", "value" : "rediss://${var.redis_endpoint}:${var.redis_port}" }
   ]
   grpc_container_secrets = [
     {
