@@ -31,6 +31,7 @@ locals {
     # For the rails/rpc container we use redis_endpoint and redis_port instead to keep it
     # consistent with the other rails services that use redis
     { "name" : "ANYCABLE_REDIS_URL", "value" : "rediss://${var.redis_endpoint}:${var.redis_port}" },
+    { "name" : "ANYCABLE_REDIS_DISABLE_CACHE", "value" : "true" },
     { "name" : "ANYCABLE_HOST", "value" : "0.0.0.0" },
     { "name" : "ANYCABLE_PORT", "value" : "80" },
     { "name" : "ANYCABLE_RPC_HOST", "value" : "${local.grpc_subdomain}:${var.grpc_port}" },
@@ -99,10 +100,10 @@ locals {
     { "name" : "AUDIT_POSTGRES_REPLICA_DATABASE", "value" : "${var.audit_replica_database}" },
     { "name" : "AUDIT_POSTGRES_REPLICA_ENDPOINT", "value" : "${var.audit_replica_endpoint}" },
     { "name" : "AUDIT_POSTGRES_REPLICA_PORT", "value" : "${var.audit_replica_port}" },
-    # For rails we used REDIS_ENDPOINT and REDIS_PORT variabels - so we're doing the same here
-    # to keep it consistent across the board
+    # For rails we use the REDIS_ENDPOINT and REDIS_PORT variables so the
+    # AnyCable configuration can construct the Redis URL consistently.
     { "name" : "REDIS_PORT", "value" : "${var.redis_port}" },
-    { "name" : "REDIS_ENDPOINT", "value" : "rediss://${var.redis_endpoint}:${var.redis_port}" }
+    { "name" : "REDIS_ENDPOINT", "value" : "${var.redis_endpoint}" }
   ]
   grpc_container_secrets = [
     {
