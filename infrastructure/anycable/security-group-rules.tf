@@ -47,3 +47,13 @@ resource "aws_security_group_rule" "grpc_redis_access" {
   protocol                 = "tcp"
   source_security_group_id = module.grpc.ecs_security_group_id
 }
+
+resource "aws_security_group_rule" "grpc_legacy_redis_access" {
+  description              = "gRPC Rails cache Redis access"
+  security_group_id        = var.legacy_redis_security_group_id
+  type                     = "ingress"
+  from_port                = var.legacy_redis_port
+  to_port                  = var.legacy_redis_port
+  protocol                 = "tcp"
+  source_security_group_id = module.grpc.ecs_security_group_id
+}

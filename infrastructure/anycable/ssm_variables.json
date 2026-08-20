@@ -25,6 +25,8 @@
         "audit_replica_endpoint": "config/audit_database/reader_endpoint",
         "audit_replica_port": "config/audit_database/port",
         "redis_security_group_id": "config/cache/pubsub_valkey_security_group_id",
+        "legacy_redis_security_group_id": "config/cache/redis_security_group_id",
+        "legacy_redis_port": "config/cache/redis_port",
         "ava_emr_image": "config/ava_emr_image",
         "ava_emr_version": "config/ava_emr_version",
         "anycable_desired_count": "config/anycable_desired_count",

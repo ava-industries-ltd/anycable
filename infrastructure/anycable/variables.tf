@@ -155,6 +155,16 @@ variable "redis_security_group_id" {
   type = string
 }
 
+variable "legacy_redis_security_group_id" {
+  description = "Security group for the legacy Rails cache Redis instance"
+  type        = string
+}
+
+variable "legacy_redis_port" {
+  description = "Port for the legacy Rails cache Redis instance"
+  type        = number
+}
+
 ###################
 
 variable "allowed_cidr_blocks" {
