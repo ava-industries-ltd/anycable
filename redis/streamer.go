@@ -284,21 +284,46 @@ func (s *Streamer) autoclaimMessages(blockTime int64) ([]rueidis.XRangeEntry, er
 
 func (s *Streamer) handleRange(messages []rueidis.XRangeEntry) {
 	for _, message := range messages {
-		s.log.Debug("received message")
+		s.log.With("message_id", message.ID).Debug("received message")
 
-		if err := s.handler(message.FieldValues); err == nil {
+		handlerStartedAt := time.Now()
+		err := s.handler(message.FieldValues)
+		handlerDuration := time.Since(handlerStartedAt)
+
+		if err == nil {
+			ackStartedAt := time.Now()
 			ackRes := s.client.DoMulti(context.Background(),
 				s.client.B().Xack().Key(s.stream).Group(s.group).Id(message.ID).Build(),
 				s.client.B().Xdel().Key(s.stream).Id(message.ID).Build(),
 			)
+			ackDuration := time.Since(ackStartedAt)
 
 			ackErr := ackRes[0].Error()
+			deleteErr := ackRes[1].Error()
 
 			if ackErr != nil {
-				s.log.Error("failed to ack message", "error", ackErr)
+				s.log.Error("failed to ack message", "message_id", message.ID, "duration", ackDuration, "error", ackErr)
+			}
+
+			if deleteErr != nil {
+				s.log.Error("failed to delete message", "message_id", message.ID, "duration", ackDuration, "error", deleteErr)
+			}
+
+			if handlerDuration >= time.Second || ackDuration >= time.Second {
+				s.log.Warn("slow Redis stream message",
+					"message_id", message.ID,
+					"handler_duration", handlerDuration,
+					"ack_delete_duration", ackDuration,
+				)
+			} else {
+				s.log.Debug("processed message",
+					"message_id", message.ID,
+					"handler_duration", handlerDuration,
+					"ack_delete_duration", ackDuration,
+				)
 			}
 		} else {
-			s.log.Error("Redis stream handler failed", "error", err)
+			s.log.Error("Redis stream handler failed", "message_id", message.ID, "duration", handlerDuration, "error", err)
 		}
 	}
 }

@@ -195,7 +195,20 @@ func (s *RedisSubscriber) Publish(stream string, msg interface{}) {
 
 	s.log.With("channel", stream).Debug("publish message", "data", msg)
 
-	client.Do(ctx, client.B().Publish().Channel(stream).Message(string(utils.ToJSON(msg))).Build())
+	startedAt := time.Now()
+	res := client.Do(ctx, client.B().Publish().Channel(stream).Message(string(utils.ToJSON(msg))).Build())
+	duration := time.Since(startedAt)
+
+	if err := res.Error(); err != nil {
+		s.log.With("channel", stream).Error("failed to publish message", "duration", duration, "error", err)
+		return
+	}
+
+	if duration >= time.Second {
+		s.log.With("channel", stream).Warn("slow Redis publish", "duration", duration)
+	} else {
+		s.log.With("channel", stream).Debug("published message", "duration", duration)
+	}
 }
 
 func (s *RedisSubscriber) initClient() error {

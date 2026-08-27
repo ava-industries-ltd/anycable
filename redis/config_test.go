@@ -33,7 +33,31 @@ func TestBasic(t *testing.T) {
 	assert.Equal(t, 0, options.SelectDB)
 	assert.Equal(t, 30*time.Second, options.Dialer.KeepAlive)
 	assert.False(t, options.ShuffleInit)
+	assert.False(t, options.DisableAutoPipelining)
+	assert.False(t, options.ForceSingleClient)
 	assert.Nil(t, options.TLSConfig)
+}
+
+func TestDisableAutoPipelining(t *testing.T) {
+	config := NewRedisConfig()
+	config.URL = "redis://localhost:6379"
+	config.DisableAutoPipelining = true
+
+	options, err := config.ToRueidisOptions()
+	require.NoError(t, err)
+
+	assert.True(t, options.DisableAutoPipelining)
+}
+
+func TestForceSingleClient(t *testing.T) {
+	config := NewRedisConfig()
+	config.URL = "redis://localhost:6379"
+	config.ForceSingleClient = true
+
+	options, err := config.ToRueidisOptions()
+	require.NoError(t, err)
+
+	assert.True(t, options.ForceSingleClient)
 }
 
 func TestTrailingSlashHostname(t *testing.T) {

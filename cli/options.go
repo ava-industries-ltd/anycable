@@ -755,6 +755,22 @@ func redisCLIFlags(c *config.Config) []cli.Flag {
 			Destination: &c.Redis.DisableCache,
 			Hidden:      true,
 		},
+
+		&cli.BoolFlag{
+			Name:        "redis_disable_auto_pipelining",
+			Usage:       "Disable automatic Redis command pipelining",
+			Value:       c.Redis.DisableAutoPipelining,
+			Destination: &c.Redis.DisableAutoPipelining,
+			Hidden:      true,
+		},
+
+		&cli.BoolFlag{
+			Name:        "redis_force_single_client",
+			Usage:       "Force a single Redis client connection",
+			Value:       c.Redis.ForceSingleClient,
+			Destination: &c.Redis.ForceSingleClient,
+			Hidden:      true,
+		},
 	})
 }
 

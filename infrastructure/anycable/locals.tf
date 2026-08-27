@@ -32,6 +32,9 @@ locals {
     # consistent with the other rails services that use redis
     { "name" : "ANYCABLE_REDIS_URL", "value" : "rediss://${var.redis_endpoint}:${var.redis_port}" },
     { "name" : "ANYCABLE_REDIS_DISABLE_CACHE", "value" : "true" },
+    # QA diagnostic: avoid Rueidis auto-pipelining while investigating 5-second
+    # stalls in RedisX acknowledgement/deletion against ElastiCache Serverless.
+    { "name" : "ANYCABLE_REDIS_DISABLE_AUTO_PIPELINING", "value" : "true" },
     { "name" : "ANYCABLE_HOST", "value" : "0.0.0.0" },
     { "name" : "ANYCABLE_PORT", "value" : "80" },
     { "name" : "ANYCABLE_RPC_HOST", "value" : "${local.grpc_subdomain}:${var.grpc_port}" },

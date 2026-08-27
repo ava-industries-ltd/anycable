@@ -36,6 +36,10 @@ type RedisConfig struct {
 	MaxReconnectAttempts int `toml:"max_reconnect_attempts"`
 	// Disable client-side caching
 	DisableCache bool `toml:"disable_cache"`
+	// Disable automatic command pipelining and use the connection pool instead
+	DisableAutoPipelining bool `toml:"disable_auto_pipelining"`
+	// Force a single client connection instead of automatic cluster detection
+	ForceSingleClient bool `toml:"force_single_client"`
 
 	// List of hosts to connect
 	hosts []string
@@ -152,6 +156,8 @@ func (config *RedisConfig) ToRueidisOptions() (options *rueidis.ClientOption, er
 	}
 
 	options.DisableCache = config.DisableCache
+	options.DisableAutoPipelining = config.DisableAutoPipelining
+	options.ForceSingleClient = config.ForceSingleClient
 
 	return options, nil
 }
@@ -232,6 +238,20 @@ func (config *RedisConfig) ToToml() string {
 		result.WriteString(fmt.Sprintf("disable_cache = %t\n", config.DisableCache))
 	} else {
 		result.WriteString("# disable_cache = true\n")
+	}
+
+	result.WriteString("# Disable automatic command pipelining\n")
+	if config.DisableAutoPipelining {
+		result.WriteString(fmt.Sprintf("disable_auto_pipelining = %t\n", config.DisableAutoPipelining))
+	} else {
+		result.WriteString("# disable_auto_pipelining = true\n")
+	}
+
+	result.WriteString("# Force a single Redis client connection\n")
+	if config.ForceSingleClient {
+		result.WriteString(fmt.Sprintf("force_single_client = %t\n", config.ForceSingleClient))
+	} else {
+		result.WriteString("# force_single_client = true\n")
 	}
 
 	result.WriteString("\n")
