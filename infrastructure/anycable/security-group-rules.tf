@@ -8,6 +8,16 @@ resource "aws_security_group_rule" "anycable_redis_access" {
   source_security_group_id = module.anycable.ecs_security_group_id
 }
 
+resource "aws_security_group_rule" "anycable_legacy_redis_access" {
+  description              = "Anycable Rails cache Redis access"
+  security_group_id        = var.legacy_redis_security_group_id
+  type                     = "ingress"
+  from_port                = var.legacy_redis_port
+  to_port                  = var.legacy_redis_port
+  protocol                 = "tcp"
+  source_security_group_id = module.anycable.ecs_security_group_id
+}
+
 resource "aws_security_group_rule" "anycable_grpc_access" {
   description              = "Anycable gRPC access"
   security_group_id        = module.grpc.ecs_security_group_id

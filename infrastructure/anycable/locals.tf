@@ -47,7 +47,7 @@ locals {
     { "name" : "ANYCABLE_HISTORY_LIMIT", "value" : "100" },
     { "name" : "ANYCABLE_RPC_CONCURRENCY", "value" : "28" },
     { "name" : "ANYCABLE_DEBUG", "value" : "false" },
-    { "name" : "ANYCABLE_LOG_LEVEL", "value" : "debug" },
+    { "name" : "ANYCABLE_LOG_LEVEL", "value" : "info" },
   ]
   anycable_container_secrets = [
     {
