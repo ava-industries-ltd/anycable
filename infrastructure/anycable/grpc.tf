@@ -38,6 +38,9 @@ module "grpc" {
   enable_ecs_autoscaling         = false
   alb_logging_bucket             = coalesce(var.alb_access_logs_bucket_name, "${var.name}-${var.environment}-${var.region}-logs")
 
+  # Rails must boot and pass the gRPC health check before ECS can replace a task.
+  health_check_grace_period_seconds = 300
+
   tags = {
     Environment = var.environment
     Service     = local.grpc_name

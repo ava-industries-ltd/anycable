@@ -149,6 +149,7 @@ resource "aws_ecs_service" "manual" {
 
   deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
+  health_check_grace_period_seconds  = var.health_check_grace_period_seconds
 
   placement_constraints {
     type = "distinctInstance"
@@ -189,6 +190,7 @@ resource "aws_ecs_service" "autoscaled" {
 
   deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
+  health_check_grace_period_seconds  = var.health_check_grace_period_seconds
 
   placement_constraints {
     type = "distinctInstance"

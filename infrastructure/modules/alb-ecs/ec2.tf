@@ -109,5 +109,7 @@ resource "aws_autoscaling_group" "main" {
 
   lifecycle {
     create_before_destroy = true
+    # The ECS capacity provider manages instance count during rolling deployments.
+    ignore_changes = [desired_capacity]
   }
 }

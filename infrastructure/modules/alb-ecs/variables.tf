@@ -82,6 +82,12 @@ variable "health_check_path" {
   default     = "/health"
 }
 
+variable "health_check_grace_period_seconds" {
+  description = "Time for a new ECS task to start before unhealthy load balancer checks can replace it"
+  type        = number
+  default     = 0
+}
+
 variable "health_check_healthy_threshold" {
   description = "Number of consecutive health check successes required"
   type        = number
