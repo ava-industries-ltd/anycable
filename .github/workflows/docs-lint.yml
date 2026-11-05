@@ -1,4 +1,6 @@
 name: Lint Docs
+permissions:
+  contents: read
 
 on:
   push:
@@ -19,4 +21,4 @@ jobs:
       rubocop: false
       mdl-path: docs
       lychee-args: docs/* --exclude "(ruby|deployment|assets)/"
-      forspell-args: "**/*.md *.md -e BACKERS.md"
+      forspell-args: "**/*.md *.md -e BACKERS.md -e ds/DESIGN.md"

@@ -172,6 +172,27 @@ data: {"type":"disconnect","reason":"remote","reconnect":false}
 retry: 31536000000
 ```
 
+### Comment pings
+
+Ping events are useful for clients that want to detect stale connections, but they add some traffic. If you only need pings to keep connections alive (e.g., to prevent load balancers from closing idle connections), you can send them as SSE comments instead by using the `--sse_comment_pings` option (or `ANYCABLE_SSE_COMMENT_PINGS=true`):
+
+```txt
+event: welcome
+data: {"type":"welcome"}
+
+: ping
+
+data: {"message":"hello"}
+```
+
+Comments are ignored by `EventSource`, so clients don't see pings at all. Comment pings are sent every 15 seconds by default (or using the global `ping_interval` value if it's been changed). You can configure the interval via the configuration file:
+
+```toml
+[sse]
+comment_pings = true
+ping_interval = 30
+```
+
 ### Raw data streaming
 
 > @since v1.5.2
@@ -181,10 +202,14 @@ In some cases, you may not want to receive protocol-level events (`welcome`, `co
 ```sh
 $ curl -N "http://localhost:8080/events?channel=ChatChannel&raw=1"
 
-// no welcome or confirm_subscription or ping messages
+// no welcome or confirm_subscription messages
 
 data: {"message":"hello"}
+
+: ping
 ...
 ```
 
 **NOTE:** This is only applicable to GET requests.
+
+In raw mode, pings are always sent as SSE comments (see [Comment pings](#comment-pings)).

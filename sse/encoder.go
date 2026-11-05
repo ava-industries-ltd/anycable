@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/anycable/anycable-go/common"
 	"github.com/anycable/anycable-go/encoders"
@@ -18,6 +19,9 @@ const retryNoReconnect = int64(31536000000)
 
 const lastIdDelimeter = "/"
 
+// SSE comment line used as a keepalive message (ignored by EventSource)
+const CommentPing = ": ping"
+
 // Encoder is responsible for converting messages to SSE format (event:, data:, etc.)
 // NOTE: It's only used to encode messages from server to client.
 type Encoder struct {
@@ -25,14 +29,36 @@ type Encoder struct {
 	RawData bool
 	// Whether to send only the "message" field of the payload as data or the whole payload
 	UnwrapData bool
+	// Whether to send pings as SSE comments (invisible to clients) instead of ping events
+	CommentPings bool
 }
 
-func (Encoder) ID() string {
-	return sseEncoderID
+// ID returns a unique identifier for the encoder configuration
+func (e Encoder) ID() string {
+	id := sseEncoderID
+
+	if e.UnwrapData {
+		id += ":u"
+	}
+
+	if e.RawData {
+		id += ":r"
+	}
+
+	if e.CommentPings {
+		id += ":c"
+	}
+
+	return id
 }
 
 func (e *Encoder) Encode(msg encoders.EncodedMessage) (*ws.SentFrame, error) {
 	msgType := msg.GetType()
+
+	// Raw mode doesn't expose protocol events, so we use comments for keepalive
+	if msgType == common.PingType && (e.RawData || e.CommentPings) {
+		return &ws.SentFrame{FrameType: ws.TextFrame, Payload: []byte(CommentPing)}, nil
+	}
 
 	b, err := json.Marshal(&msg)
 	if err != nil {
@@ -51,9 +77,9 @@ func (e *Encoder) Encode(msg encoders.EncodedMessage) (*ws.SentFrame, error) {
 		} else {
 			data = string(utils.ToJSON(reply.Message))
 		}
-		payload = "data: " + data
+		payload = encodeSSEData(data)
 	} else {
-		payload = "data: " + string(b)
+		payload = encodeSSEData(string(b))
 	}
 
 	if msgType != "" {
@@ -78,6 +104,24 @@ func (e *Encoder) Encode(msg encoders.EncodedMessage) (*ws.SentFrame, error) {
 	}
 
 	return &ws.SentFrame{FrameType: ws.TextFrame, Payload: []byte(payload)}, nil
+}
+
+// sseDataLineBreak rewrites every line terminator into a new `data:` field
+// boundary. Order matters: CRLF is matched before lone CR/LF.
+var sseDataLineBreak = strings.NewReplacer("\r\n", "\ndata: ", "\r", "\ndata: ", "\n", "\ndata: ")
+
+// encodeSSEData formats a payload as one or more SSE `data:` fields.
+//
+// Per the SSE specification, an event's data is encoded as one `data:` field
+// per line; the client (e.g. EventSource) rejoins the fields with "\n". A raw
+// line terminator after a single `data:` prefix would truncate the payload at
+// the first line break, because the following lines are parsed as fields other
+// than `data` and ignored. LF, CR and CRLF are all line terminators per the
+// spec, so all three are normalized. This matters for unwrapped payloads, which
+// may be arbitrary multi-line strings; JSON-encoded payloads are unaffected
+// (their newlines are already escaped).
+func encodeSSEData(payload string) string {
+	return "data: " + sseDataLineBreak.Replace(payload)
 }
 
 func (e Encoder) EncodeTransmission(raw string) (*ws.SentFrame, error) {

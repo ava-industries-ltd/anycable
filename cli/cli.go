@@ -11,10 +11,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/anycable/anycable-go/api"
 	"github.com/anycable/anycable-go/broadcast"
 	"github.com/anycable/anycable-go/broker"
 	"github.com/anycable/anycable-go/common"
 	"github.com/anycable/anycable-go/config"
+	"github.com/anycable/anycable-go/ds"
 	"github.com/anycable/anycable-go/enats"
 	"github.com/anycable/anycable-go/identity"
 	"github.com/anycable/anycable-go/logger"
@@ -65,6 +67,7 @@ type Runner struct {
 	websocketEndpoints  map[string]websocketHandler
 
 	router  *router.RouterController
+	streams *streams.Controller
 	metrics *metricspkg.Metrics
 	broker  broker.Broker
 
@@ -222,14 +225,19 @@ func (r *Runner) Run() error {
 			wsServer.SetupHandler(pusherAPIPath, http.HandlerFunc(pusherRestAPI.Handler))
 			r.log.Info(fmt.Sprintf("Handle Pusher API requests at %s%s", wsServer.Address(), pusherAPIPath))
 		} else {
-			pusherAPIServer, err := server.ForPort(strconv.Itoa(r.config.Pusher.APIPort))
-			if err != nil {
+			pusherAPIServer := pusher.NewServer(appNode, r.broker, &r.config.Pusher, r.log)
+
+			if err := pusherAPIServer.Start(); err != nil {
 				return errorx.Decorate(err, "failed to initialize Pusher API server at port %d", r.config.Pusher.APIPort)
 			}
 
-			pusherAPIServer.SetupHandler(pusherAPIPath, http.HandlerFunc(pusherRestAPI.Handler))
-			r.startHTTPServer(pusherAPIServer, "Pusher API server")
-			r.log.Info(fmt.Sprintf("Handle Pusher API requests at %s%s", pusherAPIServer.Address(), pusherAPIPath))
+			go func() {
+				if err := pusherAPIServer.Run(); err != nil {
+					r.errChan <- err
+				}
+			}()
+
+			r.shutdownables = append(r.shutdownables, pusherAPIServer)
 		}
 	}
 
@@ -249,6 +257,27 @@ func (r *Runner) Run() error {
 		}
 
 		wsServer.SetupHandler(r.config.SSE.Path, sseHandler)
+	}
+
+	if r.config.DS.Enabled {
+		dsStreamsPath := fmt.Sprintf("%s/*", r.config.DS.Path)
+
+		r.log.Info(
+			fmt.Sprintf("Handle Durable Streams requests at %s%s",
+				wsServer.Address(), dsStreamsPath),
+		)
+
+		dsHandler, err := r.defaultDSHandler(appNode, r.metrics, wsServer.ShutdownCtx(), r.config)
+
+		if err != nil {
+			return errorx.Decorate(err, "failed to initialize Durable Streams handler")
+		}
+
+		wsServer.SetupHandler(dsStreamsPath, dsHandler)
+	}
+
+	if err := r.startAPIServer(appNode, r.broker); err != nil {
+		return err
 	}
 
 	go r.startWSServer(wsServer)
@@ -289,10 +318,12 @@ func (r *Runner) runNode() (*node.Node, error) {
 	if r.telemetryEnabled {
 		tracker := telemetry.NewTracker(metrics, r.config, r.telemetryConfig)
 
-		r.log.With("context", "telemetry").Info(tracker.Announce())
-		go tracker.Collect()
+		if tracker.Enabled() {
+			r.log.With("context", "telemetry").Info(tracker.Announce())
+			go tracker.Collect()
 
-		r.shutdownables = append(r.shutdownables, tracker)
+			r.shutdownables = append(r.shutdownables, tracker)
+		}
 	}
 
 	subscriber, err := r.subscriberFactory(appNode, r.config, r.log)
@@ -461,22 +492,58 @@ func (r *Runner) startWSServer(wsServer *server.HTTPServer) {
 	}()
 }
 
-func (r *Runner) startHTTPServer(httpServer *server.HTTPServer, name string) {
-	go func() {
-		err := httpServer.StartAndAnnounce(name)
-		if err != nil {
-			if !httpServer.Stopped() {
-				r.errChan <- fmt.Errorf("%s at %s stopped: %v", name, httpServer.Address(), err)
-			}
-		}
-	}()
-}
-
 func (r *Runner) startMetrics(metrics *metricspkg.Metrics) {
 	err := metrics.Run()
 	if err != nil {
 		r.errChan <- fmt.Errorf("!!! Metrics module failed to start !!!\n%v", err)
 	}
+}
+
+func (r *Runner) startAPIServer(appNode *node.Node, brk broker.Broker) error {
+	c := r.config
+
+	// API is enabled when:
+	// - Public mode is active, OR
+	// - Secret is configured (explicit or can be derived), OR
+	// - Non-default port is specified
+	apiEnabled := c.PublicMode || c.API.Port != 0 || c.API.Secret != "" || c.Secret != ""
+
+	if !apiEnabled {
+		return nil
+	}
+
+	// Set up secret derivation from app-level secret if not explicitly configured
+	if c.API.Secret == "" && c.Secret != "" {
+		c.API.SecretBase = c.Secret
+	}
+
+	// If running on the same port as the main server, use that port
+	if c.API.Port == 0 {
+		c.API.Port = c.Server.Port
+	}
+
+	apiServer, err := api.NewServer(&c.API, brk, appNode, r.log)
+	if err != nil {
+		return errorx.Decorate(err, "failed to initialize API server")
+	}
+
+	if err := apiServer.Start(); err != nil {
+		return errorx.Decorate(err, "failed to start API server")
+	}
+
+	go func() {
+		if err := apiServer.Run(); err != nil {
+			r.errChan <- err
+		}
+	}()
+
+	r.shutdownables = append(r.shutdownables, apiServer)
+
+	if !apiServer.Authenticator().IsEnabled() {
+		r.log.Info("API server is running without authentication")
+	}
+
+	return nil
 }
 
 func (r *Runner) defaultDisconnector(n *node.Node, c *config.Config, l *slog.Logger) (node.Disconnector, error) {
@@ -526,6 +593,20 @@ func (r *Runner) defaultSSEHandler(n *node.Node, m metricspkg.Instrumenter, ctx 
 	handler := sse.SSEHandler(n, m, ctx, &extractor, &c.SSE, r.log)
 
 	return handler, nil
+}
+
+func (r *Runner) defaultDSHandler(n *node.Node, m metricspkg.Instrumenter, ctx context.Context, c *config.Config) (http.Handler, error) {
+	extractor := server.DefaultHeadersExtractor{Headers: c.RPC.ProxyHeaders, Cookies: c.RPC.ProxyCookies}
+	if c.JWT.Enabled() {
+		extractor.AuthHeader = c.JWT.HeaderKey()
+	}
+
+	st := r.streams
+	if st == nil {
+		st = streams.NewStreamsController(&c.Streams, r.log)
+	}
+
+	return ds.DSHandler(n, r.broker, st, m, ctx, &extractor, &c.DS, r.log)
 }
 
 func (r *Runner) pusherWebsocketHandler(n *node.Node, c *config.Config) http.Handler {
@@ -606,6 +687,7 @@ func (r *Runner) defaultRouter() *router.RouterController {
 
 	if r.config.Streams.PubSubChannel != "" {
 		streamController := streams.NewStreamsController(&r.config.Streams, r.log)
+		r.streams = streamController
 		router.Route(r.config.Streams.PubSubChannel, streamController) // nolint:errcheck
 	}
 

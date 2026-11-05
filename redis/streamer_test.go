@@ -70,14 +70,23 @@ func TestStreamer(t *testing.T) {
 	block_ms := 500
 	l := slog.Default()
 
-	received := make(chan map[string]string, 10)
+	// Create a separate Redis client for test operations (publishing, waiting for consumers)
+	// so we don't depend on the streamer's internal client lifecycle.
+	options, err := rconfig.ToRueidisOptions()
+	require.NoError(t, err)
 
-	handler := func(msg map[string]string) error {
-		received <- msg
-		return nil
-	}
+	testClient, err := rueidis.NewClient(*options)
+	require.NoError(t, err)
+	defer testClient.Close()
 
 	t.Run("Handles incoming messages", func(t *testing.T) {
+		received := make(chan map[string]string, 10)
+
+		handler := func(msg map[string]string) error {
+			received <- msg
+			return nil
+		}
+
 		streamer := NewStreamer(stream, group, &rconfig, l, StreamerWithHandler(handler), StreamerWithBlockMS(int64(block_ms)))
 
 		err := streamer.Start()
@@ -85,14 +94,11 @@ func TestStreamer(t *testing.T) {
 
 		defer streamer.Shutdown(context.Background()) // nolint:errcheck
 
-		require.NoError(t, streamer.initClient())
+		<-streamer.Ready()
 
-		require.NoError(t, waitRedisStreamConsumers(streamer.client, 1))
+		require.NoError(t, publishToRedisStream(testClient, stream, "testo"))
 
-		require.NoError(t, publishToRedisStream(streamer.client, stream, "testo"))
-
-		messages := drainStream(received)
-		require.Equalf(t, 1, len(messages), "Expected 1 message, got %d", len(messages))
+		messages := drainStream(t, received, 1, 2*time.Second)
 
 		msg := messages[0]
 
@@ -100,6 +106,13 @@ func TestStreamer(t *testing.T) {
 	})
 
 	t.Run("With multiple subscribers", func(t *testing.T) {
+		received := make(chan map[string]string, 10)
+
+		handler := func(msg map[string]string) error {
+			received <- msg
+			return nil
+		}
+
 		streamer := NewStreamer(stream, group, &rconfig, l, StreamerWithHandler(handler), StreamerWithBlockMS(int64(block_ms)))
 
 		err := streamer.Start()
@@ -107,25 +120,22 @@ func TestStreamer(t *testing.T) {
 
 		defer streamer.Shutdown(context.Background()) // nolint:errcheck
 
-		require.NoError(t, streamer.initClient())
-
 		streamer2 := NewStreamer(stream, group, &rconfig, l, StreamerWithHandler(handler), StreamerWithBlockMS(int64(block_ms)))
 		err = streamer2.Start()
 		require.NoError(t, err)
 
 		defer streamer2.Shutdown(context.Background()) // nolint:errcheck
 
-		require.NoError(t, waitRedisStreamConsumers(streamer.client, 2))
+		<-streamer.Ready()
+		<-streamer2.Ready()
 
-		require.NoError(t, publishToRedisStream(streamer.client, stream, "123_test"))
+		require.NoError(t, publishToRedisStream(testClient, stream, "123_test"))
 
-		require.NoError(t, publishToRedisStream(streamer.client, stream, "124_test"))
+		require.NoError(t, publishToRedisStream(testClient, stream, "124_test"))
 
-		require.NoError(t, publishToRedisStream(streamer.client, stream, "125_test"))
+		require.NoError(t, publishToRedisStream(testClient, stream, "125_test"))
 
-		messages := drainStream(received)
-
-		require.Equalf(t, 3, len(messages), "Expected 3 messages, got %d", len(messages))
+		drainStream(t, received, 3, 2*time.Second)
 	})
 }
 
@@ -170,7 +180,8 @@ func TestStreamerAcksClaims(t *testing.T) {
 	defer streamer.Shutdown(context.Background()) // nolint:errcheck
 
 	require.NoError(t, streamer.initClient())
-	require.NoError(t, waitRedisStreamConsumers(streamer.client, 1))
+
+	waitRedisStreamConsumers(t, streamer.client, 1)
 
 	require.NoError(t, publishToRedisStream(streamer.client, stream, "1"))
 	require.NoError(t, publishToRedisStream(streamer.client, stream, "2"))
@@ -181,14 +192,10 @@ func TestStreamerAcksClaims(t *testing.T) {
 	defer streamer2.Shutdown(context.Background()) // nolint:errcheck
 
 	require.NoError(t, streamer2.initClient())
-	require.NoError(t, waitRedisStreamConsumers(streamer2.client, 1))
 
-	// We should wait for at least 2*blockTime to mark older consumer as stale
-	// and claim its messages
-	time.Sleep(300 * time.Millisecond)
+	waitRedisStreamConsumers(t, streamer2.client, 1)
 
-	messages := drainStream(received)
-	require.Equalf(t, 3, len(messages), "Expected 3 messages, got %d", len(messages))
+	messages := drainStream(t, received, 3, 2*time.Second)
 
 	assert.Equal(t, "1", messages[0]["payload"])
 	assert.Equal(t, "2", messages[1]["payload"])
@@ -197,7 +204,7 @@ func TestStreamerAcksClaims(t *testing.T) {
 	assert.Equal(t, "2", messages[2]["payload"])
 }
 
-func drainStream[T any](ch chan T) []T {
+func drainStream[T any](t *testing.T, ch chan T, count int, timeout time.Duration) []T {
 	buffer := make([]T, 0)
 
 out:
@@ -205,10 +212,15 @@ out:
 		select {
 		case msg := <-ch:
 			buffer = append(buffer, msg)
-		case <-time.After(time.Second):
+			if len(buffer) == count {
+				return buffer
+			}
+		case <-time.After(timeout):
 			break out
 		}
 	}
+
+	assert.Equalf(t, count, len(buffer), "haven't received %d messages on time", count)
 
 	return buffer
 }
@@ -225,24 +237,18 @@ func publishToRedisStream(client rueidis.Client, stream string, payload string) 
 	return res.Error()
 }
 
-func waitRedisStreamConsumers(client rueidis.Client, count int) error {
-	if client == nil {
-		return errors.New("No Redis client configured")
-	}
+func waitRedisStreamConsumers(t *testing.T, client rueidis.Client, count int) {
+	require.NotNil(t, client, "No Redis client configured")
 
-	attempts := 0
+	require.Eventuallyf(t,
+		func() bool {
+			res := client.Do(context.Background(), client.B().Arbitrary("client", "list").Build())
+			clientsStr, err := res.ToString()
+			if err != nil {
+				return false
+			}
 
-	for {
-		if attempts > 5 {
-			return errors.New("No stream consumer were created")
-		}
-
-		res := client.Do(context.Background(), client.B().Arbitrary("client", "list").Build())
-		clientsStr, err := res.ToString()
-
-		if err == nil {
 			clients := strings.Split(clientsStr, "\n")
-
 			readers := 0
 			for _, clientMsg := range clients {
 				if clientMsg == "" {
@@ -256,12 +262,10 @@ func waitRedisStreamConsumers(client rueidis.Client, count int) error {
 				}
 			}
 
-			if readers >= count {
-				return nil
-			}
-		}
-
-		time.Sleep(500 * time.Millisecond)
-		attempts++
-	}
+			return readers >= count
+		},
+		3*time.Second,
+		200*time.Millisecond,
+		"No stream consumer were created",
+	)
 }

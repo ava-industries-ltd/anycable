@@ -1,4 +1,6 @@
 name: Test
+permissions:
+  contents: read
 
 on:
   push:
@@ -21,12 +23,12 @@ jobs:
         ports: ["6379:6379"]
         options: --health-cmd="redis-cli ping" --health-interval 1s --health-timeout 3s --health-retries 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Install system deps
         run: |
           sudo apt-get update
           sudo apt-get install bison
-      - uses: actions/cache@v4
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: vendor
           key: vendor-${{ hashFiles('**/go.sum') }}
@@ -40,7 +42,7 @@ jobs:
           bundler-cache: true
       - name: Build mruby
         run: bash -c '(cd vendor/github.com/mitchellh/go-mruby && MRUBY_CONFIG=../../../../../../etc/build_config.rb make libmruby.a)'
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
       - name: Run tests
@@ -50,7 +52,7 @@ jobs:
           make build
       - name: Upload linux build
         if: (github.ref == 'refs/head/master' || contains(github.event.pull_request.body, '[Build]'))
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: anycable-go-Linux-x86_64
           path: dist/anycable-go
@@ -63,14 +65,14 @@ jobs:
       GOFLAGS: "-mod=vendor"
       COVERAGE: "true"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
       - name: Install system deps
         run: |
           brew install bison
-      - uses: actions/cache@v4
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: vendor
           key: vendor-${{ hashFiles('**/go.sum') }}
@@ -91,7 +93,7 @@ jobs:
           make build
       - name: Upload MacOS build
         if: (github.ref == 'refs/head/master' || contains(github.event.pull_request.body, '[Build]'))
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: anycable-go-Darwin-x86_64
           path: dist/anycable-go
@@ -134,8 +136,8 @@ jobs:
         image: nats:alpine
         ports: ["4222:4222"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
       - name: Install system deps
@@ -154,7 +156,7 @@ jobs:
           # Use <3.0 since go-mruby's Rakefile has some problems with keyword arguments compatibility
           ruby-version: 2.7
           bundler-cache: true
-      - uses: actions/cache@v4
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: vendor
           key: vendor-${{ hashFiles('**/go.sum') }}

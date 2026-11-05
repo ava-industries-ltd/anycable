@@ -10,6 +10,7 @@ import (
 
 	"github.com/anycable/anycable-go/config"
 	"github.com/anycable/anycable-go/node"
+	"github.com/anycable/anycable-go/sse"
 	"github.com/anycable/anycable-go/version"
 	"github.com/nats-io/nats.go"
 	"github.com/urfave/cli/v2"
@@ -119,6 +120,8 @@ func NewConfigFromCLI(args []string, opts ...cliOption) (*config.Config, error, 
 	flags = append(flags, embeddedNatsCLIFlags(&c, &enatsRoutes, &enatsGateways)...)
 	flags = append(flags, sseCLIFlags(&c)...)
 	flags = append(flags, pusherCLIFlags(&c)...)
+	flags = append(flags, dsCLIFlags(&c)...)
+	flags = append(flags, apiCLIFlags(&c)...)
 	flags = append(flags, miscCLIFlags(&c, &presets)...)
 
 	app := &cli.App{
@@ -259,9 +262,23 @@ Use shutdown_timeout instead.`)
 		c.PubSubAdapter = "redis"
 	}
 
+	ssePingInterval := sse.DefaultPingInterval
+	if c.App.PingInterval != defaults.App.PingInterval {
+		ssePingInterval = c.App.PingInterval
+	}
+
+	if c.SSE.PingInterval == 0 {
+		c.SSE.PingInterval = ssePingInterval
+	}
+
+	if c.DS.SSEPingInterval == 0 {
+		c.DS.SSEPingInterval = ssePingInterval
+	}
+
 	// Propagate allowed origins to all the components
 	c.WS.AllowedOrigins = c.Server.AllowedOrigins
 	c.SSE.AllowedOrigins = c.Server.AllowedOrigins
+	c.DS.AllowedOrigins = c.Server.AllowedOrigins
 	c.HTTPBroadcast.CORSHosts = c.Server.AllowedOrigins
 
 	c.Pusher.AddCORSHeaders = c.HTTPBroadcast.AddCORSHeaders
@@ -482,6 +499,8 @@ const (
 	brokerCategoryDescription        = "BROKER:"
 	sseCategoryDescription           = "SERVER-SENT EVENTS:"
 	pusherCategoryDescription        = "PUSHER:"
+	dsCategoryDescription            = "DURABLE STREAMS:"
+	apiCategoryDescription           = "API:"
 
 	envPrefix = "ANYCABLE_"
 )
@@ -1472,6 +1491,70 @@ func sseCLIFlags(c *config.Config) []cli.Flag {
 			Usage:       "SSE endpoint path",
 			Value:       c.SSE.Path,
 			Destination: &c.SSE.Path,
+		},
+		&cli.BoolFlag{
+			Name:        "sse_comment_pings",
+			Usage:       "Send pings as SSE comments instead of ping events",
+			Value:       c.SSE.CommentPings,
+			Destination: &c.SSE.CommentPings,
+		},
+	})
+}
+
+func dsCLIFlags(c *config.Config) []cli.Flag {
+	return withDefaults(dsCategoryDescription, []cli.Flag{
+		&cli.BoolFlag{
+			Name:        "ds",
+			Usage:       "Enable Durable Streams endpoint",
+			Value:       c.DS.Enabled,
+			Destination: &c.DS.Enabled,
+		},
+		&cli.StringFlag{
+			Name:        "ds_path",
+			Usage:       "Durable Streams endpoint path",
+			Value:       c.DS.Path,
+			Destination: &c.DS.Path,
+		},
+		&cli.BoolFlag{
+			Name:        "ds_skip_auth",
+			Usage:       "Disable client authentication for Durable Streams (only authorize stream access)",
+			Value:       c.DS.SkipAuth,
+			Destination: &c.DS.SkipAuth,
+		},
+		&cli.IntFlag{
+			Name:        "ds_poll_interval",
+			Usage:       "Durable Streams long polling interval (seconds)",
+			Value:       c.DS.PollInterval,
+			Destination: &c.DS.PollInterval,
+		},
+		&cli.IntFlag{
+			Name:        "ds_sse_ttl",
+			Usage:       "Durable Streams SSE connections time-to-live (seconds)",
+			Value:       c.DS.SSETTL,
+			Destination: &c.DS.SSETTL,
+		},
+	})
+}
+
+// apiCLIFlags returns CLI flags for API server
+func apiCLIFlags(c *config.Config) []cli.Flag {
+	return withDefaults(apiCategoryDescription, []cli.Flag{
+		&cli.IntFlag{
+			Name:        "api_port",
+			Usage:       "API server port (0 = use main server port)",
+			Value:       c.API.Port,
+			Destination: &c.API.Port,
+		},
+		&cli.StringFlag{
+			Name:        "api_path",
+			Usage:       "API endpoint base path",
+			Value:       c.API.Path,
+			Destination: &c.API.Path,
+		},
+		&cli.StringFlag{
+			Name:        "api_secret",
+			Usage:       "Secret token to authenticate API requests",
+			Destination: &c.API.Secret,
 		},
 	})
 }

@@ -51,3 +51,8 @@ admin/ui/build
 *.tfstate.*
 *.tfvars
 /**/parameters.json
+
+.claude/*.local.*
+
+# Docker dev env: per-developer Claude config (seeded from .claude.json.example).
+.dockerdev/.claude.json

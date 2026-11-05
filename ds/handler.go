@@ -1,0 +1,399 @@
+package ds
+
+import (
+	"context"
+	"encoding/base64"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/anycable/anycable-go/broker"
+	"github.com/anycable/anycable-go/common"
+	"github.com/anycable/anycable-go/metrics"
+	"github.com/anycable/anycable-go/node"
+	"github.com/anycable/anycable-go/server"
+	"github.com/anycable/anycable-go/sse"
+	"github.com/anycable/anycable-go/streams"
+	"github.com/anycable/anycable-go/version"
+	"github.com/anycable/anycable-go/ws"
+)
+
+// DSHandler generates a new http handler for Durable Streams connections
+func DSHandler(n *node.Node, brk broker.Broker, st *streams.Controller, m metrics.Instrumenter, shutdownCtx context.Context, headersExtractor server.HeadersExtractor, c *Config, l *slog.Logger) (http.Handler, error) {
+	if st == nil {
+		return nil, errors.New("streams controller is required")
+	}
+
+	var allowedHosts []string
+
+	if c.AllowedOrigins == "" {
+		allowedHosts = []string{}
+	} else {
+		allowedHosts = strings.Split(c.AllowedOrigins, ",")
+	}
+
+	if m != nil {
+		m.RegisterCounter(metricsRequestsTotal, "The total number of durable streams HEAD/GET requests")
+		m.RegisterCounter(metricsPollTotal, "The total number of durable streams long-poll requests")
+		m.RegisterCounter(metricsSSETotal, "The total number of durable streams SSE requests")
+		m.RegisterGauge(metricsPollNum, "The number of active durable streams long-poll clients")
+		m.RegisterGauge(metricsSSENum, "The number of active durable streams SSE clients")
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Write CORS headers
+		server.WriteCORSHeaders(w, r, allowedHosts)
+
+		// Respond to preflight requests
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		w.Header().Set("X-AnyCable-Version", version.Version())
+
+		streamParams, err := StreamParamsFromReq(r, c)
+		if err != nil {
+			l.With("transport", "ds").Debug("invalid stream request", "err", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		// DS only supports GET and HEAD requests for reading data
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			l.With("transport", "ds").Debug("non-read operations are not supported")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+
+		info, err := server.NewRequestInfo(r, headersExtractor)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		// Authenticate and init stream
+		stream, pollConn, err := NewDSSession(n, c, w, info, streamParams)
+
+		if err != nil {
+			l.Debug("unauthenticated", "err", err)
+			pollConn.Close(http.StatusUnauthorized, "Auth Failed")
+			return
+		}
+
+		// Perform stream access check
+		identifier := streamParams.ToSubscribeCommand().Identifier
+
+		_, verifiedStream, serr := st.VerifiedStream(identifier)
+
+		// The verified stream (e.g., from a signed stream name) must match the requested one,
+		// since the data is read using the stream name from the URL
+		if serr == nil && verifiedStream != streamParams.Name {
+			serr = fmt.Errorf("stream mismatch: requested %q, authorized %q", streamParams.Name, verifiedStream)
+		}
+
+		if serr != nil {
+			stream.Session.Log.Debug("unauthorized", "err", serr)
+			pollConn.Close(http.StatusUnauthorized, "unauthorized")
+			// Ensure its removed from the node
+			stream.Session.Disconnect("unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		stream.Session.Log.Debug("session established", "mode", stream.Params.LiveMode, "offset", stream.Params.RawOffset)
+		defer func() {
+			stream.Session.Log.Debug("session completed")
+			stream.Session.Disconnect("done", ws.CloseNormalClosure)
+		}()
+
+		tail, err := brk.Peak(stream.Params.Name)
+
+		if err != nil {
+			stream.Session.Log.Error("failed to get stream metadata", "err", err)
+			pollConn.Close(http.StatusInternalServerError, "")
+			return
+		}
+
+		// Unknown stream or no data
+		if tail == nil {
+			tail = &common.StreamMessage{}
+		}
+
+		if r.Method == http.MethodHead {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Cache-Control", "no-store")
+
+			w.Header().Set(StreamOffsetHeader, EncodeOffset(tail.Offset, tail.Epoch))
+
+			pollConn.Close(http.StatusOK, "")
+			return
+		}
+
+		if r.Method == http.MethodGet {
+			if m != nil {
+				m.CounterIncrement(metricsRequestsTotal)
+			}
+
+			if streamParams.LiveMode != SSEMode {
+				handleHTTP(n, brk, c, m, w, r, stream, pollConn, tail, shutdownCtx)
+			} else {
+				handleSSE(n, brk, c, m, w, r, stream, pollConn, tail, shutdownCtx)
+			}
+			return
+		}
+	}), nil
+}
+
+func handleHTTP(n *node.Node, brk broker.Broker, c *Config, m metrics.Instrumenter, w http.ResponseWriter, r *http.Request, s *Stream, pollConn *PollConnection, tail *common.StreamMessage, shutdownCtx context.Context) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+
+	w.Header().Set(StreamCursorHeader, s.NextCursor())
+
+	backlog, err := fetchHistory(brk, s.Params)
+
+	if err != nil {
+		s.Session.Log.Error("failed to fetch history", "err", err)
+		// Either offset is unreachable or epoch has changed
+		pollConn.Close(http.StatusGone, "")
+		return
+	}
+
+	if len(backlog) > 0 {
+		tail = &backlog[len(backlog)-1]
+	}
+
+	cacheControl := readCacheControl(c, r, s.Params)
+
+	if len(backlog) > 0 || s.Params.LiveMode != LongPollMode {
+		nextOffset := EncodeOffset(tail.Offset, tail.Epoch)
+
+		w.Header().Set("Cache-Control", cacheControl)
+		w.Header().Set(StreamOffsetHeader, nextOffset)
+		w.Header().Set(StreamUpToDateHeader, "true")
+
+		if s.Params.RawOffset != NowOffset {
+			etag := streamETag(s.Params, nextOffset)
+			w.Header().Set("ETag", etag)
+
+			if etagMatches(r.Header.Get("If-None-Match"), etag) {
+				s.Session.Log.Debug("not modified")
+				pollConn.Close(http.StatusNotModified, "")
+				return
+			}
+		}
+
+		s.Session.Log.Debug("write history", "len", len(backlog))
+		pollConn.Close(http.StatusOK, "")
+		w.Write(EncodeJSONBatch(backlog)) // nolint: errcheck
+		return
+	}
+
+	if m != nil {
+		m.CounterIncrement(metricsPollTotal)
+		m.GaugeIncrement(metricsPollNum)
+		defer m.GaugeDecrement(metricsPollNum)
+	}
+
+	// Must be set before subscribing, since the response could be written right away
+	pollConn.CacheControl = cacheControl
+
+	if s.Params.RawOffset != NowOffset {
+		pollConn.ETag = func(nextOffset string) string { return streamETag(s.Params, nextOffset) }
+	}
+
+	_, err = n.Subscribe(s.Session, s.Params.ToSubscribeCommand())
+
+	if err != nil {
+		s.Session.Log.Error("failed to subscribe", "err", err)
+		pollConn.Close(http.StatusInternalServerError, "")
+		return
+	}
+
+	conn := s.Conn.(*PollConnection)
+	disconnectNotify := r.Context().Done()
+	flushNotify := conn.Context().Done()
+	timeout := c.PollInterval
+
+	shutdownReceived := false
+
+	for {
+		select {
+		case <-shutdownCtx.Done():
+			if !shutdownReceived {
+				shutdownReceived = true
+				s.Session.Log.Debug("server shutdown")
+				conn.Close(http.StatusGone, "Server shutdown")
+			}
+		case <-time.After(time.Duration(timeout) * time.Second):
+			conn.Close(http.StatusNoContent, "No content")
+			return
+		case <-disconnectNotify:
+			s.Session.Log.Debug("polling request terminated")
+			return
+		case <-flushNotify:
+			s.Session.Log.Debug("polling request fulfilled")
+			return
+		}
+	}
+}
+
+func handleSSE(n *node.Node, brk broker.Broker, c *Config, m metrics.Instrumenter, w http.ResponseWriter, r *http.Request, s *Stream, pollConn *PollConnection, tail *common.StreamMessage, shutdownCtx context.Context) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		s.Session.Log.Error("streaming not supported")
+		pollConn.Close(http.StatusInternalServerError, "")
+		return
+	}
+
+	if r.ProtoMajor == 1 {
+		w.Header().Set("Connection", "keep-alive")
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "private, no-cache, no-store, must-revalidate, max-age=0")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	if m != nil {
+		m.CounterIncrement(metricsSSETotal)
+		m.GaugeIncrement(metricsSSENum)
+		defer m.GaugeDecrement(metricsSSENum)
+	}
+
+	backlog, err := fetchHistory(brk, s.Params)
+	if err != nil {
+		s.Session.Log.Error("failed to fetch history", "err", err)
+		pollConn.Close(http.StatusGone, "")
+		return
+	}
+
+	if len(backlog) > 0 {
+		tail = &backlog[len(backlog)-1]
+	}
+
+	pollConn.Close(http.StatusOK, "")
+	flusher.Flush()
+
+	offset := EncodeOffset(tail.Offset, tail.Epoch)
+	cursor := s.NextCursor()
+
+	if len(backlog) > 0 {
+		s.Session.Log.Debug("write history", "len", len(backlog))
+		w.Write(EncodeSSEDataEvent(backlog))                 // nolint: errcheck
+		w.Write([]byte("\n\n"))                              // nolint: errcheck
+		w.Write(EncodeSSEControlEvent(offset, cursor, true)) // nolint: errcheck
+		w.Write([]byte("\n\n"))                              // nolint: errcheck
+		flusher.Flush()
+	}
+
+	conn := s.Conn.(*sse.Connection)
+	conn.Established()
+
+	_, err = n.Subscribe(s.Session, s.Params.ToSubscribeCommand())
+	if err != nil {
+		s.Session.Log.Error("failed to subscribe", "err", err)
+		return
+	}
+
+	disconnectNotify := r.Context().Done()
+	connClosed := conn.Context().Done()
+	timeout := c.SSETTL
+
+	if timeout == 0 {
+		timeout = 60
+	}
+
+	for {
+		select {
+		case <-shutdownCtx.Done():
+			s.Session.Log.Debug("server shutdown")
+			conn.Close(ws.CloseGoingAway, "Server shutdown")
+			return
+		case <-disconnectNotify:
+			s.Session.Log.Debug("client disconnected")
+			// Close synchronously to wait for in-flight writes and prevent further ones,
+			// since writing to the response after the handler returns is not allowed
+			conn.Close(ws.CloseNormalClosure, "Client disconnected")
+			return
+		case <-connClosed:
+			s.Session.Log.Debug("connection closed")
+			return
+		case <-time.After(time.Duration(timeout) * time.Second):
+			conn.Close(http.StatusOK, "No content")
+			return
+		}
+	}
+}
+
+// readCacheControl returns the Cache-Control header value for successful catch-up and long-poll reads (DS spec §10.1)
+func readCacheControl(c *Config, r *http.Request, sp *StreamParams) string {
+	// The tail offset changes with each append, so it must not be cached
+	if sp.RawOffset == NowOffset {
+		return "no-store"
+	}
+
+	visibility := "private"
+
+	if isSharedCacheable(c, r) {
+		visibility = "public"
+	}
+
+	return visibility + ", max-age=60, stale-while-revalidate=300"
+}
+
+// isSharedCacheable returns true if access to the stream is fully determined by the request URL,
+// and, thus, the response can be stored in shared caches (CDNs).
+// Authentication (unless skipped) and signed stream names passed via headers may depend
+// on credentials which are not a part of the cache key.
+func isSharedCacheable(c *Config, r *http.Request) bool {
+	if !c.SkipAuth {
+		return false
+	}
+
+	return r.URL.Query().Get(SignedStreamParam) != "" || r.Header.Get(SignedStreamHeader) == ""
+}
+
+func streamETag(sp *StreamParams, nextOffset string) string {
+	return `"` + base64.StdEncoding.EncodeToString([]byte(sp.Path)) + ":" + sp.RawOffset + ":" + nextOffset + `"`
+}
+
+func etagMatches(ifNoneMatch string, etag string) bool {
+	if ifNoneMatch == "" {
+		return false
+	}
+
+	for _, candidate := range strings.Split(ifNoneMatch, ",") {
+		candidate = strings.TrimSpace(candidate)
+
+		if candidate == "*" || strings.TrimPrefix(candidate, "W/") == etag {
+			return true
+		}
+	}
+
+	return false
+}
+
+// fetchHistory retrieves history from broker
+// If epoch is empty (initial read), uses HistorySince with timestamp 0 to get all history
+// Otherwise uses HistoryFrom with the provided epoch and offset
+func fetchHistory(brk broker.Broker, sp *StreamParams) ([]common.StreamMessage, error) {
+	// Check reserved offsets first
+	if sp.RawOffset == StartOffset || sp.RawOffset == "0" {
+		return brk.HistorySince(sp.Path, 0)
+	}
+
+	if sp.RawOffset == NowOffset {
+		return []common.StreamMessage{}, nil
+	}
+
+	if sp.Epoch == "" {
+		return nil, errors.New("no epoch in the offset")
+	}
+
+	history, err := brk.HistoryFrom(sp.Path, sp.Epoch, sp.Offset)
+
+	return history, err
+}

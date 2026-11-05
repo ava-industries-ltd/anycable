@@ -77,6 +77,18 @@ func (ms *memstream) insert(data string, offset uint64, t time.Time) (uint64, er
 	return ms.offset, nil
 }
 
+func (ms *memstream) peak() uint64 {
+	ms.mu.Lock()
+	defer ms.mu.Unlock()
+
+	if len(ms.data) == 0 {
+		return 0
+	}
+
+	entry := ms.data[len(ms.data)-1]
+	return entry.offset
+}
+
 func (ms *memstream) appendEntry(entry *entry) {
 	ms.data = append(ms.data, entry)
 
@@ -409,15 +421,32 @@ func (b *Memory) Store(name string, data []byte, offset uint64, ts time.Time) (u
 	return stream.insert(string(data), offset, ts)
 }
 
-func (b *Memory) CommitSession(sid string, session Cacheable) error {
-	b.sessionsMu.Lock()
-	defer b.sessionsMu.Unlock()
+func (b *Memory) Peak(name string) (*common.StreamMessage, error) {
+	b.streamsMu.Lock()
+	defer b.streamsMu.Unlock()
 
+	if stream, ok := b.streams[name]; ok {
+		offset := stream.peak()
+		// empty
+		if offset == 0 {
+			return nil, nil
+		}
+
+		return &common.StreamMessage{Offset: offset, Epoch: b.epoch}, nil
+	}
+
+	return nil, nil
+}
+
+func (b *Memory) CommitSession(sid string, session Cacheable) error {
 	cached, err := session.ToCacheEntry()
 
 	if err != nil {
 		return err
 	}
+
+	b.sessionsMu.Lock()
+	defer b.sessionsMu.Unlock()
 
 	deadline := time.Now().UnixMilli() + (b.config.SessionsTTL * 1000)
 	var expiration *utils.PriorityQueueItem[string, int64]
@@ -467,9 +496,12 @@ func (b *Memory) TouchPresence(sid string) error {
 	return nil
 }
 
+func (b *Memory) SupportsPresence() bool {
+	return true
+}
+
 func (b *Memory) PresenceAdd(stream string, sid string, pid string, info interface{}) (*common.PresenceEvent, error) {
 	b.presence.mu.Lock()
-	defer b.presence.mu.Unlock()
 
 	if _, ok := b.presence.streams[stream]; !ok {
 		b.presence.streams[stream] = make(map[string]*presenceEntry)
@@ -483,6 +515,7 @@ func (b *Memory) PresenceAdd(stream string, sid string, pid string, info interfa
 	}
 
 	if oldPid, ok := b.presence.sessions[sid].streams[stream]; ok && oldPid != pid {
+		b.presence.mu.Unlock()
 		return nil, errors.New("presence ID mismatch")
 	}
 
@@ -505,6 +538,8 @@ func (b *Memory) PresenceAdd(stream string, sid string, pid string, info interfa
 
 	streamSessionPresence.add(sid, info)
 
+	b.presence.mu.Unlock()
+
 	if newPresence {
 		ev := &common.PresenceEvent{
 			Type: common.PresenceJoinType,
@@ -524,9 +559,9 @@ func (b *Memory) PresenceAdd(stream string, sid string, pid string, info interfa
 
 func (b *Memory) PresenceRemove(stream string, sid string) (*common.PresenceEvent, error) {
 	b.presence.mu.Lock()
-	defer b.presence.mu.Unlock()
 
 	if _, ok := b.presence.streams[stream]; !ok {
+		b.presence.mu.Unlock()
 		return nil, errors.New("stream not found")
 	}
 
@@ -534,6 +569,7 @@ func (b *Memory) PresenceRemove(stream string, sid string) (*common.PresenceEven
 
 	if ses, ok := b.presence.sessions[sid]; ok {
 		if id, ok := ses.streams[stream]; !ok {
+			b.presence.mu.Unlock()
 			return nil, errors.New("presence info not found")
 		} else {
 			pid = id
@@ -549,6 +585,7 @@ func (b *Memory) PresenceRemove(stream string, sid string) (*common.PresenceEven
 	streamPresence := b.presence.streams[stream]
 
 	if _, ok := streamPresence[pid]; !ok {
+		b.presence.mu.Unlock()
 		return nil, errors.New("presence record not found")
 	}
 
@@ -563,6 +600,8 @@ func (b *Memory) PresenceRemove(stream string, sid string) (*common.PresenceEven
 	if len(streamPresence) == 0 {
 		delete(b.presence.streams, stream)
 	}
+
+	b.presence.mu.Unlock()
 
 	if empty {
 		ev := &common.PresenceEvent{

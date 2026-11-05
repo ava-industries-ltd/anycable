@@ -58,6 +58,8 @@ type Broker interface {
 	// Prevent session cache from expiration
 	TouchSession(sid string) error
 
+	SupportsPresence() bool
+
 	// Adds a new presence record for the stream. Returns true if that's the first
 	// presence record for the presence ID (pid, a unique user presence identifier).
 	PresenceAdd(stream string, sid string, pid string, info interface{}) (*common.PresenceEvent, error)
@@ -71,6 +73,9 @@ type Broker interface {
 
 	// Marks presence record as still alive
 	TouchPresence(sid string) error
+
+	// Peak returns the current stream position or nil if no stream found
+	Peak(stream string) (*common.StreamMessage, error)
 }
 
 // LocalBroker is a single-node broker that can used to store streams data locally
@@ -199,6 +204,10 @@ func (LegacyBroker) HistorySince(stream string, ts int64) ([]common.StreamMessag
 	return nil, errors.New("history not supported")
 }
 
+func (LegacyBroker) Peak(stream string) (*common.StreamMessage, error) {
+	return nil, errors.New("history not supported")
+}
+
 func (LegacyBroker) CommitSession(sid string, session Cacheable) error {
 	return nil
 }
@@ -209,6 +218,10 @@ func (LegacyBroker) RestoreSession(from string) ([]byte, error) {
 
 func (LegacyBroker) TouchSession(sid string) error {
 	return nil
+}
+
+func (LegacyBroker) SupportsPresence() bool {
+	return false
 }
 
 func (LegacyBroker) PresenceAdd(stream string, sid string, pid string, info interface{}) (*common.PresenceEvent, error) {
