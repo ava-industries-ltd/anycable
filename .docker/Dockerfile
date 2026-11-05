@@ -32,11 +32,10 @@ RUN cd vendor/github.com/mitchellh/go-mruby && \
     MRUBY_CONFIG=../../../../../../etc/build_config.rb \
     make libmruby.a
 
-# 4) Build the AnyCable‑Go executable with the 'mrb' tag
+# Keep the upstream version from version/version.go and append the commit SHA.
 RUN go build -tags mrb \
     -ldflags "\
       -s -w \
-      -X github.com/anycable/anycable-go/version.version=$(git describe --tags --always --dirty) \
       -X github.com/anycable/anycable-go/version.sha=$(git rev-parse --short HEAD)" \
     -o anycable-go-mrb \
     cmd/anycable-go/main.go
