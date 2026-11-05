@@ -34,6 +34,8 @@ locals {
     { "name" : "ANYCABLE_REDIS_DISABLE_CACHE", "value" : "true" },
     { "name" : "ANYCABLE_HOST", "value" : "0.0.0.0" },
     { "name" : "ANYCABLE_PORT", "value" : "80" },
+    # Keep the management API off the public ALB's target port.
+    { "name" : "ANYCABLE_API_PORT", "value" : "8090" },
     { "name" : "ANYCABLE_RPC_HOST", "value" : "${local.grpc_subdomain}:${var.grpc_port}" },
     { "name" : "ANYCABLE_RPC_ENABLE_TLS", "value" : "true" },
     { "name" : "ANYCABLE_PATH", "value" : "/cable" },

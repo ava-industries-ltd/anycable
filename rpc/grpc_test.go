@@ -132,7 +132,18 @@ func TestGRPCMultiHost(t *testing.T) {
 	require.NoError(t, controller.Start())
 	defer controller.Shutdown() //nolint:errcheck
 
-	for i := 0; i < 10; i++ {
+	// Warm up the gRPC client (init channel connections)
+	_, err = controller.Authenticate(context.Background(), "test", &common.SessionEnv{URL: "http://test.cable", Headers: &headers})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		return controller.clientState.ActiveConns() == 2
+	}, 2*time.Second, 10*time.Millisecond, "both gRPC subchannels did not become ready")
+
+	atomic.StoreInt32(&service1_called, 0)
+	atomic.StoreInt32(&service2_called, 0)
+
+	for range 10 {
 		res, err := controller.Authenticate(context.Background(), "test", &common.SessionEnv{URL: "http://test.cable", Headers: &headers})
 
 		require.NoError(t, err)
@@ -140,13 +151,19 @@ func TestGRPCMultiHost(t *testing.T) {
 		assert.Equal(t, common.SUCCESS, res.Status)
 	}
 
-	assert.Greater(t, service1_called, int32(0))
-	assert.Greater(t, service2_called, int32(0))
+	assert.Greater(t, atomic.LoadInt32(&service1_called), int32(0))
+	assert.Greater(t, atomic.LoadInt32(&service2_called), int32(0))
 }
 
 func runGRPCServer(t *testing.T, port int) (*mocks.RPCServer, func()) {
 	server := grpc.NewServer(
 		grpc.MaxConcurrentStreams(1),
+		grpc.UnaryInterceptor(func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+			t.Logf("gRPC server at %d received call: %s, request: %+v", port, info.FullMethod, req)
+			resp, err := handler(ctx, req)
+			t.Logf("gRPC server at %d responding: %s, response: %+v, error: %v", port, info.FullMethod, resp, err)
+			return resp, err
+		}),
 	)
 	service := mocks.RPCServer{}
 	pb.RegisterRPCServer(server, &service)

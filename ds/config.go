@@ -1,0 +1,75 @@
+package ds
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/anycable/anycable-go/sse"
+)
+
+// Durable Streams configuration
+type Config struct {
+	Enabled bool `toml:"enabled"`
+	// Path is the URL path to handle HTTP requests
+	Path string `toml:"path"`
+	// Skip authentication
+	SkipAuth bool `toml:"skip_auth"`
+	// Poll interval  for live=poll mode (in seconds)
+	PollInterval int `toml:"poll_interval"`
+	// Max time to live for a SSE connection (in seconds)
+	SSETTL int `toml:"sse_ttl"`
+	// Keepalive interval for comment-based pings in live=sse mode (in seconds).
+	// Zero means using the global ping interval (if it's been changed) or sse.DefaultPingInterval.
+	SSEPingInterval int    `toml:"sse_ping_interval"`
+	AllowedOrigins  string `toml:"-"`
+}
+
+// NewConfig creates a new Config with default values.
+func NewConfig() Config {
+	return Config{
+		Enabled:      false,
+		Path:         "/ds",
+		PollInterval: 10,
+		SSETTL:       60,
+	}
+}
+
+// ToToml converts the Config struct to a TOML string representation
+func (c Config) ToToml() string {
+	var result strings.Builder
+
+	result.WriteString("# Enable Durable Streams support\n")
+	if c.Enabled {
+		result.WriteString("enabled = true\n")
+	} else {
+		result.WriteString("# enabled = true\n")
+	}
+
+	result.WriteString("# Skip authentication (only authorize per-stream access)\n")
+	if c.SkipAuth {
+		result.WriteString("skip_auth = true\n")
+	} else {
+		result.WriteString("# skip_auth = true\n")
+	}
+
+	result.WriteString("# Durable Streams mount path\n")
+	result.WriteString(fmt.Sprintf("path = \"%s\"\n", c.Path))
+
+	result.WriteString("# Poll interval for live=poll mode (in seconds)\n")
+	result.WriteString(fmt.Sprintf("poll_interval = %d\n", c.PollInterval))
+
+	result.WriteString("# Max time to live for a SSE connection (in seconds)\n")
+	result.WriteString(fmt.Sprintf("sse_ttl = %d\n", c.SSETTL))
+
+	result.WriteString("# Keepalive interval for comment-based pings in live=sse mode (in seconds)\n")
+	result.WriteString("# Defaults to the global ping_interval (if changed) or " + fmt.Sprintf("%d", sse.DefaultPingInterval) + "\n")
+	if c.SSEPingInterval > 0 {
+		result.WriteString(fmt.Sprintf("sse_ping_interval = %d\n", c.SSEPingInterval))
+	} else {
+		result.WriteString(fmt.Sprintf("# sse_ping_interval = %d\n", sse.DefaultPingInterval))
+	}
+
+	result.WriteString("\n")
+
+	return result.String()
+}

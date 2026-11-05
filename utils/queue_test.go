@@ -1,9 +1,13 @@
 package utils
 
 import (
+	"runtime"
 	"strconv"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -98,6 +102,32 @@ func TestByteQueueClose(t *testing.T) {
 	require.Equal(t, true, q.Closed())
 }
 
+func TestByteQueuePush(t *testing.T) {
+	t.Run("returns PushOK and enqueues when open and under cap", func(t *testing.T) {
+		q := NewQueue[[]byte](initialCapacity)
+		require.Equal(t, PushOK, q.Push(testByteQueueItem([]byte("a")), 0))
+		require.Equal(t, PushOK, q.Push(testByteQueueItem([]byte("b")), 100))
+		require.Equal(t, 2, q.Len())
+		require.EqualValues(t, 2, q.Size())
+	})
+
+	t.Run("returns PushClosed without enqueueing", func(t *testing.T) {
+		q := NewQueue[[]byte](initialCapacity)
+		q.Close()
+		require.Equal(t, PushClosed, q.Push(testByteQueueItem([]byte("a")), 0))
+	})
+
+	t.Run("returns PushOverflow and clears when size >= maxSize", func(t *testing.T) {
+		q := NewQueue[[]byte](initialCapacity)
+		q.Add(testByteQueueItem([]byte("12345")))
+		require.EqualValues(t, 5, q.Size())
+		require.Equal(t, PushOverflow, q.Push(testByteQueueItem([]byte("6")), 5))
+		require.Equal(t, 0, q.Len())
+		require.EqualValues(t, 0, q.Size())
+		require.False(t, q.Closed())
+	})
+}
+
 func TestByteQueueClear(t *testing.T) {
 	q := NewQueue[[]byte](initialCapacity)
 
@@ -120,4 +150,80 @@ func TestByteQueueClear(t *testing.T) {
 	require.Equal(t, 0, q.head)
 	require.Equal(t, 1, q.tail)
 	require.Equal(t, false, q.Closed())
+}
+
+type finalizeTracker struct {
+	mu   sync.Mutex
+	data map[string]bool
+}
+
+func (ft *finalizeTracker) finalize(id string) {
+	ft.mu.Lock()
+	defer ft.mu.Unlock()
+	ft.data[id] = true
+}
+
+func (ft *finalizeTracker) get(id string) bool {
+	ft.mu.Lock()
+	defer ft.mu.Unlock()
+	return ft.data[id]
+}
+
+func TestQueue_vs_GC(t *testing.T) {
+	q := NewQueue[*map[string]string](initialCapacity)
+
+	wg := sync.WaitGroup{}
+
+	wg.Add(2)
+
+	tracker := &finalizeTracker{data: make(map[string]bool)}
+
+	go func() {
+		payload := map[string]string{"foo": "a"}
+		item := Item[*map[string]string]{1, &payload}
+
+		runtime.SetFinalizer(&payload, func(*map[string]string) {
+			tracker.finalize("a")
+		})
+		q.Add(item)
+
+		wg.Done()
+	}()
+
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		payload := map[string]string{"foo": "b"}
+		item2 := Item[*map[string]string]{1, &payload}
+		runtime.SetFinalizer(&payload, func(*map[string]string) {
+			tracker.finalize("b")
+		})
+		q.Add(item2)
+
+		wg.Done()
+	}()
+
+	wg.Wait()
+
+	require.Equal(t, 2, q.Len())
+
+	q.Remove()
+
+	runtime.GC()
+
+	require.Eventually(t, func() bool {
+		return tracker.get("a")
+	}, 2*time.Second, 100*time.Millisecond)
+
+	assert.False(t, tracker.get("b"))
+
+	q.Remove()
+
+	runtime.GC()
+
+	require.Eventually(t, func() bool {
+		return tracker.get("b")
+	}, 2*time.Second, 100*time.Millisecond)
+
+	assert.True(t, tracker.get("a"))
+	assert.True(t, tracker.get("b"))
 }

@@ -58,10 +58,12 @@ func NewRedisConfig() RedisConfig {
 }
 
 func (config *RedisConfig) IsCluster() bool {
+	sentinel := config.IsSentinel()
+
 	config.mu.RLock()
 	defer config.mu.RUnlock()
 
-	return len(config.hosts) > 1 && !config.IsSentinel()
+	return len(config.hosts) > 1 && !sentinel
 }
 
 func (config *RedisConfig) IsSentinel() bool {
@@ -79,10 +81,12 @@ func (config *RedisConfig) Hostnames() []string {
 }
 
 func (config *RedisConfig) Hostname() string {
+	sentinel := config.IsSentinel()
+
 	config.mu.RLock()
 	defer config.mu.RUnlock()
 
-	if config.IsSentinel() {
+	if sentinel {
 		return config.sentinelMaster
 	} else {
 		return config.hosts[0]
@@ -174,6 +178,23 @@ func (config *RedisConfig) parseSentinels() (*rueidis.ClientOption, error) {
 
 	options.Sentinel.MasterSet = sentinelMaster.Host
 
+	// Move sentinel creds to sentinel-specific fields
+	options.Sentinel.Username = options.Username
+	options.Sentinel.Password = options.Password
+
+	// Restore data-node creds from main URL
+	masterOpts, masterErr := parseRedisURL(config.URL)
+	if masterErr == nil {
+		options.Username = masterOpts.Username
+		options.Password = masterOpts.Password
+		if redisURLHasDB(config.URL) {
+			options.SelectDB = masterOpts.SelectDB
+		}
+	} else {
+		options.Username = ""
+		options.Password = ""
+	}
+
 	return options, nil
 }
 
@@ -259,6 +280,17 @@ func parseRedisURL(url string) (options *rueidis.ClientOption, err error) {
 	}
 
 	return options, nil
+}
+
+func redisURLHasDB(rawURL string) bool {
+	urls := strings.Split(rawURL, ",")
+	parsedURL, err := url.Parse(ensureRedisScheme(chompTrailingSlashHostname(urls[0])))
+
+	if err != nil {
+		return false
+	}
+
+	return parsedURL.Path != "" && parsedURL.Path != "/"
 }
 
 // TODO: upstream this change to `rueidis` URL parsing

@@ -1,0 +1,11 @@
+AGENTS.md
+.bundle/
+.cache/
+dist/
+tmp/
+vendor/
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+**/*.tfvars
+**/parameters.json

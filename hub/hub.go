@@ -128,15 +128,11 @@ func (h *Hub) Run() {
 			h.disconnectSessions(command.Identifier, command.Reconnect)
 
 		case <-h.shutdown:
+			h.doneFn()
 			h.done.Done()
 			return
 		}
 	}
-}
-
-// RemoveSession enqueues session un-registration
-func (h *Hub) RemoveSessionLater(s HubSession) {
-	h.register <- HubRegistration{event: "remove", session: s}
 }
 
 // Broadcast enqueues data broadcasting to a stream
@@ -274,7 +270,7 @@ func (h *Hub) UnsubscribeSessionFromChannel(session HubSession, targetIdentifier
 		}
 	}
 
-	h.log.With("sid", sid).Debug("unsubscribed", "identifier", targetIdentifier)
+	h.log.With("sid", sid).Debug("unsubscribed", "identifier", common.FilteredIdentifier(targetIdentifier))
 }
 
 func (h *Hub) SubscribeSession(session HubSession, stream string, identifier string) {
@@ -291,7 +287,7 @@ func (h *Hub) SubscribeSession(session HubSession, stream string, identifier str
 
 	h.sessions[sid].AddStream(stream, identifier)
 
-	h.log.With("sid", sid).Debug("subscribed", "identifier", identifier, "stream", stream)
+	h.log.With("sid", sid).Debug("subscribed", "identifier", common.FilteredIdentifier(identifier), "stream", stream)
 }
 
 func (h *Hub) UnsubscribeSession(session HubSession, stream string, identifier string) {
@@ -306,7 +302,7 @@ func (h *Hub) UnsubscribeSession(session HubSession, stream string, identifier s
 		info.RemoveStream(stream, identifier)
 	}
 
-	h.log.With("sid", sid).Debug("unsubscribed", "identifier", identifier, "stream", stream)
+	h.log.With("sid", sid).Debug("unsubscribed", "identifier", common.FilteredIdentifier(identifier), "stream", stream)
 }
 
 func (h *Hub) broadcastToStream(streamMsg *common.StreamMessage) {
@@ -327,13 +323,17 @@ func (h *Hub) disconnectSessions(identifier string, reconnect bool) {
 
 	h.pool.Schedule(func() {
 		h.mu.RLock()
-		defer h.mu.RUnlock()
 
 		for id := range ids {
 			if sinfo, ok := h.sessions[id]; ok {
+				h.mu.RUnlock()
+
 				sinfo.session.DisconnectWithMessage(msg, common.REMOTE_DISCONNECT_REASON)
+				return
 			}
 		}
+
+		h.mu.RUnlock()
 	})
 }
 

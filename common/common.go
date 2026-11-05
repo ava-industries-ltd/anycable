@@ -3,7 +3,9 @@ package common
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
+	"strings"
 
 	"github.com/anycable/anycable-go/logger"
 	"github.com/anycable/anycable-go/utils"
@@ -205,12 +207,12 @@ func (c *ConnectResult) LogValue() slog.Value {
 
 	return slog.GroupValue(
 		slog.String("status", StatusName(c.Status)),
-		slog.Any("transmissions", logger.CompactValues(c.Transmissions)),
+		slog.Any("transmissions", filteredTransmissions(c.Transmissions)),
 		slog.Any("broadcasts", c.Broadcasts),
 		slog.String("identifier", c.Identifier),
 		slog.Int("disconnect_interest", c.DisconnectInterest),
-		slog.Any("cstate", c.CState),
-		slog.Any("istate", c.IState),
+		slog.Any("cstate", logger.FilteredMap(c.CState)),
+		slog.Any("istate", logger.FilteredMap(c.IState)),
 	)
 }
 
@@ -271,14 +273,14 @@ func (c *CommandResult) LogValue() slog.Value {
 	return slog.GroupValue(
 		slog.String("status", StatusName(c.Status)),
 		slog.Any("streams", logger.CompactValues(c.Streams)),
-		slog.Any("transmissions", logger.CompactValues(c.Transmissions)),
+		slog.Any("transmissions", filteredTransmissions(c.Transmissions)),
 		slog.Any("stopped_streams", logger.CompactValues(c.StoppedStreams)),
 		slog.Bool("stop_all_streams", c.StopAllStreams),
 		slog.Any("broadcasts", c.Broadcasts),
 		slog.Bool("disconnect", c.Disconnect),
 		slog.Int("disconnect_interest", c.DisconnectInterest),
-		slog.Any("cstate", c.CState),
-		slog.Any("istate", c.IState),
+		slog.Any("cstate", logger.FilteredMap(c.CState)),
+		slog.Any("istate", logger.FilteredMap(c.IState)),
 	)
 }
 
@@ -340,7 +342,7 @@ func (m *Message) LogValue() slog.Value {
 
 	return slog.GroupValue(
 		slog.String("command", m.Command),
-		slog.String("identifier", m.Identifier),
+		slog.Any("identifier", FilteredIdentifier(m.Identifier)),
 		slog.Any("data", logger.CompactAny(m.Data)),
 		slog.Any("history", m.History),
 	)
@@ -399,7 +401,12 @@ func (sm *StreamMessage) ToReplyFor(identifier string) *Reply {
 	var msg interface{}
 
 	// We ignore JSON deserialization failures and consider the message to be a string
-	json.Unmarshal([]byte(data), &msg) // nolint:errcheck
+	if json.Valid([]byte(data)) {
+		dec := json.NewDecoder(strings.NewReader(data))
+		// Preserve large integers (> 2^53) precision
+		dec.UseNumber()
+		dec.Decode(&msg) // nolint:errcheck
+	}
 
 	if msg == nil {
 		msg = sm.Data
@@ -520,7 +527,7 @@ func (r *Reply) LogValue() slog.Value {
 	}
 
 	if r.Identifier != "" {
-		attrs = append(attrs, slog.String("identifier", r.Identifier))
+		attrs = append(attrs, slog.Any("identifier", FilteredIdentifier(r.Identifier)))
 	}
 
 	if r.Message != nil {
@@ -568,6 +575,10 @@ func PubSubMessageFromJSON(raw []byte) (interface{}, error) {
 
 	if err := json.Unmarshal(raw, &rmsg); err != nil {
 		return nil, err
+	}
+
+	if rmsg.Command == "" {
+		return nil, errors.New("invalid publication format")
 	}
 
 	return rmsg, nil

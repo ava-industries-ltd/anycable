@@ -1,5 +1,79 @@
 # Change log
 
+## master
+
+## 1.6.20 (2026-10-21)
+
+- Upgrade to Go tool chain 1.27.3 (fix eMuhdra CVE).
+
+## 1.6.19 (2026-10-15)
+
+- Upgrade to Go 1.27.
+
+## 1.6.18 (2026-10-09)
+
+- Durable Streams: improve `Cache-Control` compliance with the spec. ([@palkan][])
+
+  Use `private` caching unless stream access is fully determined by the URL (authentication skipped and no `X-Signed` header), and `no-store` for `offset=now` reads, long-poll `204 No Content` and error responses.
+
+- Durable Streams: fix writing to SSE response after client disconnects. ([@palkan][])
+
+- Add `--sse_comment_pings` to deliver pings as small comments (to reduce payload sizes). ([@palkan][])
+
+  It's also possible to configure a different ping interval for SSE in the TOML configuration.
+
+- Fix precision loss for large integers (> 2^53) in broadcast messages. ([@budnik][])
+
+## 1.6.17 (2026-09-24)
+
+- Add logs filtering.
+
+- Upgrade to go1.26.8 tool chain.
+
+## 1.6.16 (2026-08-05)
+
+- Upgrade to go1.26.5 tool chain.
+
+## 1.6.15 (2026-06-29)
+
+- Pusher REST API improvements (fix body_md5 verification, verify auth_timestamp). ([@palkan][])
+
+- Honor the Redis database number from the URL in Sentinel mode. ([@paderinandrey][])
+
+- Upgrade to go1.26.4 tool chain.
+
+## 1.6.14 (2026-06-26)
+
+- Minor perf improvements in broadcasting hub.
+
+- Upgrade to go1.26.3 tool chain.
+
+## 1.6.13 (2026-04-30)
+
+- Upgrade dependencies.
+
+## 1.6.12 (2026-04-02)
+
+- Upgrade dependencies.
+
+## 1.6.11 (2026-03-09)
+
+- Upgrade to Go 1.26. ([@palkan][])
+
+## 1.6.10 (2026-02-19)
+
+- Reduce memory usage by making WS buffers smaller by default (back to 1kb) and decreasing the initial write queue size. ([@palkan][])
+
+- Fix leaving orphaned pub/sub subscriptions for resumable sessions. ([@palkan][])
+
+- Fix GC-ing stale data in the outgoing messages queue. ([@palkan][])
+
+## 1.6.9 (2026-01-27)
+
+- Add new REST API with `/publish` and `/presence/:stream/users` methods. ([@palkan][])
+
+- Add Durable Streams (read) support. ([@palkan][])
+
 - Added Pusher's `GET /channels/:channel/users` support. ([@palkan][])
 
 - Add mTLS support for Redis. ([@palkan][])
@@ -488,3 +562,5 @@ See [Changelog](https://github.com/anycable/anycable-go/blob/0-6-stable/CHANGELO
 [@rafaelrubbioli]: https://github.com/rafaelrubbioli
 [@gzigzigzeo]: https://github.com/gzigzigzeo
 [@ardecvz]: https://github.com/ardecvz
+[@paderinandrey]: https://github.com/paderinandrey
+[@budnik]: https://github.com/budnik

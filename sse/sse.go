@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/anycable/anycable-go/common"
 	"github.com/anycable/anycable-go/node"
@@ -26,16 +27,24 @@ const (
 	metricsClientsNum   = "sse_clients_num"
 )
 
-func NewSSESession(n *node.Node, w http.ResponseWriter, r *http.Request, info *server.RequestInfo) (*node.Session, error) {
+func NewSSESession(n *node.Node, c *Config, w http.ResponseWriter, r *http.Request, info *server.RequestInfo) (*node.Session, error) {
 	conn := NewConnection(w)
 
 	unwrapData := r.Method == http.MethodGet
 	rawParam := strings.ToLower(r.URL.Query().Get("raw"))
 	rawData := rawParam == "true" || rawParam == "1" || rawParam == "t" || rawParam == "y"
 
-	enc := &Encoder{UnwrapData: unwrapData, RawData: rawData}
+	commentPings := rawData || c.CommentPings
 
-	session := node.NewSession(n, conn, info.URL, info.Headers, info.UID, node.WithEncoder(enc))
+	enc := &Encoder{UnwrapData: unwrapData, RawData: rawData, CommentPings: c.CommentPings}
+
+	opts := []node.SessionOption{node.WithEncoder(enc)}
+
+	if commentPings && c.PingInterval > 0 {
+		opts = append(opts, node.WithPingInterval(time.Duration(c.PingInterval)*time.Second))
+	}
+
+	session := node.NewSession(n, conn, info.URL, info.Headers, info.UID, opts...)
 	res, err := n.Authenticate(session)
 
 	if err != nil {

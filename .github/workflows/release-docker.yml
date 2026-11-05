@@ -1,4 +1,8 @@
 name: Publish Docker images
+permissions:
+  contents: read
+  packages: write
+
 on:
   release:
     types: [published]
@@ -13,12 +17,12 @@ jobs:
       GOFLAGS: "-mod=vendor"
       ANYCABLE_TELEMETRY_TOKEN: ${{ secrets.ANYCABLE_TELEMETRY_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Install system deps
         run: |
           sudo apt-get update
           sudo apt-get install bison
-      - uses: actions/cache@v4
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: vendor
           key: vendor-${{ hashFiles('**/go.sum') }}
@@ -32,7 +36,7 @@ jobs:
           bundler-cache: true
       - name: Build mruby
         run: bash -c '(cd vendor/github.com/mitchellh/go-mruby && MRUBY_CONFIG=../../../../../../etc/build_config.rb make libmruby.a)'
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
       - name: Set VERSION (if any)

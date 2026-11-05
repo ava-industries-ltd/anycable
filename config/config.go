@@ -6,8 +6,10 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/anycable/anycable-go/api"
 	"github.com/anycable/anycable-go/broadcast"
 	"github.com/anycable/anycable-go/broker"
+	"github.com/anycable/anycable-go/ds"
 	"github.com/anycable/anycable-go/enats"
 	"github.com/anycable/anycable-go/identity"
 	"github.com/anycable/anycable-go/logger"
@@ -60,6 +62,8 @@ type Config struct {
 	SSE                  sse.Config                 `toml:"sse"`
 	Streams              streams.Config             `toml:"streams"`
 	Pusher               pusher.Config              `toml:"pusher"`
+	DS                   ds.Config                  `toml:"ds"`
+	API                  api.Config                 `toml:"api"`
 
 	ConfigFilePath string
 }
@@ -93,6 +97,8 @@ func NewConfig() Config {
 		SSE:                  sse.NewConfig(),
 		Streams:              streams.NewConfig(),
 		Pusher:               pusher.NewConfig(),
+		DS:                   ds.NewConfig(),
+		API:                  api.NewConfig(),
 	}
 
 	return config // nolint:govet
@@ -208,6 +214,12 @@ func (c *Config) ToToml() string {
 
 	result.WriteString("# Pusher compatibility configuration\n[pusher]\n")
 	result.WriteString(c.Pusher.ToToml())
+
+	result.WriteString("# Durable Streams configuration\n[ds]\n")
+	result.WriteString(c.DS.ToToml())
+
+	result.WriteString("# API configuration\n[api]\n")
+	result.WriteString(c.API.ToToml())
 
 	result.WriteString("# Redis configuration\n[redis]\n")
 	result.WriteString(c.Redis.ToToml())

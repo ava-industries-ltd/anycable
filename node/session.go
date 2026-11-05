@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/anycable/anycable-go/broker"
@@ -156,7 +157,7 @@ type Session struct {
 
 	writeQueue     *utils.Queue[*ws.SentFrame]
 	writeTimeout   time.Duration
-	maxPendingSize uint64
+	maxPendingSize atomic.Uint64
 
 	timers *SessionTimers
 
@@ -174,6 +175,8 @@ type Session struct {
 	// Could be used to store arbitrary data within a session
 	InternalState map[string]interface{}
 	Log           *slog.Logger
+
+	inactive bool
 }
 
 type SessionOption = func(*Session)
@@ -255,7 +258,14 @@ func WithWriteTimeout(timeout time.Duration) SessionOption {
 // WithMaxPendingSize allows to set a custom max pending size for a session
 func WithMaxPendingSize(size uint64) SessionOption {
 	return func(s *Session) {
-		s.maxPendingSize = size
+		s.maxPendingSize.Store(size)
+	}
+}
+
+// InactiveSession marks session as idle and do not launch any timers/routines
+func InactiveSession() SessionOption {
+	return func(s *Session) {
+		s.inactive = true
 	}
 }
 
@@ -267,7 +277,7 @@ func BuildSession(conn Connection, env *common.SessionEnv) *Session {
 		metrics:       metrics.NoopMetrics{},
 		env:           env,
 		subscriptions: NewSubscriptionState(),
-		writeQueue:    utils.NewQueue[*ws.SentFrame](256),
+		writeQueue:    utils.NewQueue[*ws.SentFrame](16),
 		writeTimeout:  2 * time.Second,
 		closeCtx:      ctx,
 		closeCancel:   cancel,
@@ -298,9 +308,11 @@ func NewSession(node *Node, conn Connection, url string, headers *map[string]str
 		opt(session)
 	}
 
-	go session.SendMessages()
+	if !session.inactive {
+		go session.SendMessages()
 
-	session.startTimers()
+		session.startTimers()
+	}
 
 	return session
 }
@@ -337,7 +349,7 @@ func (s *Session) IsConnected() bool {
 }
 
 func (s *Session) IsResumeable() bool {
-	return s.resumeInterval > 0
+	return s.resumeInterval > 0 && !s.inactive
 }
 
 func (s *Session) maybeDisconnectIdle() {
@@ -670,9 +682,7 @@ func (s *Session) disconnectNow(reason string, code int) {
 		CloseCode:   code,
 	})
 
-	if !s.writeQueue.Closed() {
-		s.writeQueue.Close()
-	}
+	s.writeQueue.Close()
 
 	s.close()
 }
@@ -709,34 +719,20 @@ func (s *Session) sendClose(reason string, code int) {
 }
 
 func (s *Session) sendFrame(message *ws.SentFrame) {
-	if s.writeQueue.Closed() {
+	maxPending := s.maxPendingSize.Load()
+	size := uint64(len(message.Payload))
+	item := utils.Item[*ws.SentFrame]{Data: message, Size: size}
+
+	switch s.writeQueue.Push(item, maxPending) {
+	case utils.PushClosed:
 		return
-	}
-
-	pendingTotal := s.writeQueue.Size()
-	s.mu.Lock()
-	maxPending := s.maxPendingSize
-	s.mu.Unlock()
-
-	if maxPending > 0 && pendingTotal >= maxPending {
-		s.writeQueue.Clear()
-		s.mu.Lock()
-		s.maxPendingSize = 0
-		s.mu.Unlock()
-
-		s.Log.Debug("slow client detected, disconnecting", "pending", pendingTotal, "max", s.maxPendingSize)
-
+	case utils.PushOK:
+		break
+	case utils.PushOverflow:
+		s.maxPendingSize.Store(0)
+		s.Log.Debug("slow client detected, disconnecting", "max", maxPending)
 		s.metrics.CounterIncrement(metricsDisconnectedSlowClients)
 		s.DisconnectWithMessage(common.NewDisconnectMessage(common.SLOW_CLIENT_REASON, true), common.SLOW_CLIENT_REASON)
-		return
-	}
-
-	size := len(message.Payload)
-
-	item := utils.Item[*ws.SentFrame]{Data: message, Size: uint64(size)}
-
-	if !s.writeQueue.Add(item) {
-		defer s.Disconnect("Write failed", ws.CloseAbnormalClosure)
 	}
 }
 
