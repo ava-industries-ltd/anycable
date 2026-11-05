@@ -20,6 +20,8 @@ staticcheck:
 	staticcheck ./...
 
 libmruby.a: ${MRUBY_VENDOR_DIR}/mruby
+	# Adapt mruby 1.2.0's build scripts to Ruby 3 keyword arguments and File.exist?.
+	ruby -pi -e 'gsub("{ :verbose => $$verbose }", "verbose: $$verbose"); gsub("File.exists?", "File.exist?")' ${MRUBY_VENDOR_DIR}/mruby/Rakefile ${MRUBY_VENDOR_DIR}/mruby/minirake
 	cd ${MRUBY_VENDOR_DIR}/mruby && ${MAKE}
 	cp ${MRUBY_VENDOR_DIR}/mruby/build/host/lib/libmruby.a .
 

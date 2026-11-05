@@ -3,20 +3,20 @@
 #####################################
 # Stage 1: Builder                  #
 #####################################
-FROM golang:1.23-bullseye AS builder
+FROM golang:1.27.3-trixie AS builder
 
-# Allow Go to auto-upgrade toolchain to 1.25+
+# Build with the toolchain supplied by the image.
 ENV CGO_ENABLED=1 \
     GO111MODULE=on \
-    GOTOOLCHAIN=auto
+    GOTOOLCHAIN=local
 
 RUN apt-get update && \
     apt-get install -y \
       bison \
       zip \
       git \
-      ruby2.7 \
-      ruby2.7-dev \
+      ruby \
+      ruby-dev \
       build-essential \
       ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -24,7 +24,7 @@ RUN apt-get update && \
 WORKDIR /src
 COPY . .
 
-# Vendor Go modules (requires Go 1.25+, auto-downloaded)
+# Vendor Go modules using the local go-mruby fork.
 RUN go mod vendor
 
 # Build MRuby static library
@@ -36,25 +36,25 @@ RUN cd vendor/github.com/mitchellh/go-mruby && \
 RUN go build -tags mrb \
     -ldflags "\
       -s -w \
-      -X github.com/anycable/anycable/version.version=$(git describe --tags --always --dirty) \
-      -X github.com/anycable/anycable/version.sha=$(git rev-parse --short HEAD)" \
+      -X github.com/anycable/anycable-go/version.version=$(git describe --tags --always --dirty) \
+      -X github.com/anycable/anycable-go/version.sha=$(git rev-parse --short HEAD)" \
     -o anycable-go-mrb \
     cmd/anycable-go/main.go
 
 #####################################
 # Stage 2: grpcurl                  #
 #####################################
-FROM golang:1.23-bullseye AS grpcurl
+FROM golang:1.27.3-trixie AS grpcurl
 
 ENV CGO_ENABLED=0 \
-    GOTOOLCHAIN=auto
+    GOTOOLCHAIN=local
 
 RUN go install github.com/fullstorydev/grpcurl/cmd/grpcurl@v1.9.3
 
 #####################################
 # Stage 3: Slim Runtime             #
 #####################################
-FROM debian:bullseye-slim
+FROM debian:trixie-slim
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
